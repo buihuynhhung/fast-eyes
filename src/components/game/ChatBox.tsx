@@ -74,21 +74,27 @@ export function ChatBox({ messages, players, onSendMessage, currentPlayerName }:
       </div>
 
       <form onSubmit={handleSubmit} className="p-3 border-t border-accent/30">
-        <div className="flex gap-2">
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type a message..."
-            className="flex-1 bg-muted border-accent/30 focus:border-accent"
-          />
-          <Button
-            type="submit"
-            size="icon"
-            className="bg-accent hover:bg-accent/80"
-            disabled={!input.trim()}
-          >
-            <Send className="w-4 h-4" />
-          </Button>
+        <div className="flex flex-col gap-1">
+          <div className="flex gap-2">
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value.slice(0, 500))}
+              placeholder="Type a message..."
+              maxLength={500}
+              className="flex-1 bg-muted border-accent/30 focus:border-accent"
+            />
+            <Button
+              type="submit"
+              size="icon"
+              className="bg-accent hover:bg-accent/80"
+              disabled={!input.trim()}
+            >
+              <Send className="w-4 h-4" />
+            </Button>
+          </div>
+          <span className="text-xs text-muted-foreground text-right">
+            {input.length}/500
+          </span>
         </div>
       </form>
     </div>
