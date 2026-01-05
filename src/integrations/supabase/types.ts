@@ -192,6 +192,14 @@ export type Database = {
         }
         Returns: Json
       }
+      reset_game: {
+        Args: { p_room_id: string; p_session_id: string }
+        Returns: Json
+      }
+      start_game: {
+        Args: { p_room_id: string; p_session_id: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

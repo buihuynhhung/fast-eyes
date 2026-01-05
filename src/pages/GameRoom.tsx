@@ -199,23 +199,35 @@ export default function GameRoomPage() {
   };
 
   const startGame = async () => {
-    if (!room || players.length < 2) {
-      toast({
-        title: "Need more players",
-        description: "At least 2 players are required to start.",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (!room || !sessionId) return;
 
     try {
-      await supabase
-        .from('game_rooms')
-        .update({
-          status: 'playing',
-          started_at: new Date().toISOString(),
-        })
-        .eq('id', room.id);
+      // Use secure RPC function with server-side host verification
+      const { data, error } = await supabase.rpc('start_game', {
+        p_room_id: room.id,
+        p_session_id: sessionId,
+      });
+
+      if (error) {
+        console.error('Error starting game:', error);
+        toast({
+          title: "Error",
+          description: "Failed to start the game.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const result = data as { success: boolean; error?: string };
+      
+      if (!result.success) {
+        toast({
+          title: "Cannot start game",
+          description: result.error || "Unknown error",
+          variant: "destructive",
+        });
+        return;
+      }
 
       await supabase.from('chat_messages').insert({
         room_id: room.id,
@@ -292,32 +304,35 @@ export default function GameRoomPage() {
   };
 
   const handlePlayAgain = async () => {
-    if (!room || !currentPlayer?.is_host) return;
+    if (!room || !sessionId) return;
 
     try {
-      // Reset room
-      await supabase
-        .from('game_rooms')
-        .update({
-          status: 'waiting',
-          current_target: 1,
-          started_at: null,
-          finished_at: null,
-          grid_seed: `${room.room_code}_${Date.now()}`,
-        })
-        .eq('id', room.id);
+      // Use secure RPC function with server-side host verification
+      const { data, error } = await supabase.rpc('reset_game', {
+        p_room_id: room.id,
+        p_session_id: sessionId,
+      });
 
-      // Reset player scores
-      await supabase
-        .from('players')
-        .update({ score: 0 })
-        .eq('room_id', room.id);
+      if (error) {
+        console.error('Error resetting game:', error);
+        toast({
+          title: "Error",
+          description: "Failed to reset the game.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-      // Delete claimed numbers
-      await supabase
-        .from('claimed_numbers')
-        .delete()
-        .eq('room_id', room.id);
+      const result = data as { success: boolean; error?: string };
+      
+      if (!result.success) {
+        toast({
+          title: "Cannot reset game",
+          description: result.error || "Unknown error",
+          variant: "destructive",
+        });
+        return;
+      }
 
       setClaimedNumbers(new Map());
       setShowVictory(false);
