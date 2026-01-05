@@ -30,6 +30,8 @@ const Index = () => {
       return;
     }
 
+    localStorage.setItem('fast-eyes.playerName', playerName.trim());
+
     setIsCreating(true);
     try {
       const newRoomCode = generateRoomCode();
@@ -99,6 +101,8 @@ const Index = () => {
       });
       return;
     }
+
+    localStorage.setItem('fast-eyes.playerName', playerName.trim());
 
     setIsJoining(true);
     try {
