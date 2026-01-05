@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useGameSession } from '@/hooks/useGameSession';
 import { useAntiCheat } from '@/hooks/useAntiCheat';
 import { PLAYER_COLORS } from '@/lib/gameUtils';
-import { NumberGrid } from '@/components/game/NumberGrid';
+import { CanvasNumberGrid } from '@/components/game/CanvasNumberGrid';
 import { GameTimer } from '@/components/game/GameTimer';
 import { PlayerList } from '@/components/game/PlayerList';
 import { ChatBox } from '@/components/game/ChatBox';
@@ -600,7 +600,7 @@ export default function GameRoomPage() {
                   />
                 </div>
                 
-                <NumberGrid
+                <CanvasNumberGrid
                   maxNumbers={room.max_numbers}
                   gridSeed={room.grid_seed || room.room_code}
                   currentTarget={room.current_target}
