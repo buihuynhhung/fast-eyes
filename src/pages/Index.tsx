@@ -13,7 +13,7 @@ import { useGameSession } from '@/hooks/useGameSession';
 const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const sessionId = useGameSession();
+  const { sessionId, isLoading: sessionLoading } = useGameSession();
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [maxNumbers, setMaxNumbers] = useState(25);
@@ -273,7 +273,7 @@ const Index = () => {
 
             <Button
               onClick={createRoom}
-              disabled={isCreating || !sessionId}
+              disabled={isCreating || !sessionId || sessionLoading}
               className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground font-display text-lg h-12"
             >
               {isCreating ? (
@@ -309,7 +309,7 @@ const Index = () => {
 
             <Button
               onClick={joinRoom}
-              disabled={isJoining || !sessionId}
+              disabled={isJoining || !sessionId || sessionLoading}
               className="w-full bg-accent hover:bg-accent/80 text-accent-foreground font-display text-lg h-12"
             >
               {isJoining ? (

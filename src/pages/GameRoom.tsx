@@ -19,7 +19,7 @@ export default function GameRoomPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const sessionId = useGameSession();
+  const { sessionId } = useGameSession();
   
   useAntiCheat();
 
@@ -234,59 +234,46 @@ export default function GameRoomPage() {
     if (claimedNumbers.has(number)) return;
 
     try {
-      // Claim the number
-      await supabase.from('claimed_numbers').insert({
-        room_id: room.id,
-        number: number,
-        player_id: currentPlayer.id,
+      // Use atomic claim_number function to prevent race conditions
+      const { data, error } = await supabase.rpc('claim_number', {
+        p_room_id: room.id,
+        p_player_id: currentPlayer.id,
+        p_number: number,
+        p_session_id: sessionId,
       });
 
-      // Update player score
-      await supabase
-        .from('players')
-        .update({ score: currentPlayer.score + 1 })
-        .eq('id', currentPlayer.id);
+      if (error) {
+        console.error('Error claiming number:', error);
+        return;
+      }
 
-      // Update room target
-      const nextTarget = number + 1;
-      const isFinished = nextTarget > room.max_numbers;
+      const result = data as { success: boolean; error?: string; finished?: boolean };
+      
+      if (!result.success) {
+        // Number was already claimed by someone else - no action needed
+        return;
+      }
 
-      if (isFinished) {
-        await supabase
-          .from('game_rooms')
-          .update({
-            current_target: nextTarget,
-            status: 'finished',
-            finished_at: new Date().toISOString(),
-          })
-          .eq('id', room.id);
-
+      // Send milestone or finish messages
+      if (result.finished) {
         await supabase.from('chat_messages').insert({
           room_id: room.id,
           player_name: 'System',
           message: `${currentPlayer.player_name} finished the game!`,
           is_system: true,
         });
-      } else {
-        await supabase
-          .from('game_rooms')
-          .update({ current_target: nextTarget })
-          .eq('id', room.id);
-
-        // Milestone messages
-        if (number % 10 === 0) {
-          await supabase.from('chat_messages').insert({
-            room_id: room.id,
-            player_name: 'System',
-            message: `${currentPlayer.player_name} reached number ${number}!`,
-            is_system: true,
-          });
-        }
+      } else if (number % 10 === 0) {
+        await supabase.from('chat_messages').insert({
+          room_id: room.id,
+          player_name: 'System',
+          message: `${currentPlayer.player_name} reached number ${number}!`,
+          is_system: true,
+        });
       }
     } catch (error) {
       console.error('Error claiming number:', error);
     }
-  }, [room, currentPlayer, claimedNumbers]);
+  }, [room, currentPlayer, claimedNumbers, sessionId]);
 
   const sendMessage = async (message: string) => {
     if (!room || !currentPlayer) return;
