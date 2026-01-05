@@ -3,10 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Copy, Play, ArrowLeft, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useGameSession } from '@/hooks/useGameSession';
 import { useAntiCheat } from '@/hooks/useAntiCheat';
+import { PLAYER_COLORS } from '@/lib/gameUtils';
 import { NumberGrid } from '@/components/game/NumberGrid';
 import { GameTimer } from '@/components/game/GameTimer';
 import { PlayerList } from '@/components/game/PlayerList';
@@ -31,6 +34,8 @@ export default function GameRoomPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showVictory, setShowVictory] = useState(false);
   const [finalTime, setFinalTime] = useState(0);
+  const [joinName, setJoinName] = useState(() => localStorage.getItem('fast-eyes.playerName') || '');
+  const [isJoiningRoom, setIsJoiningRoom] = useState(false);
 
   // Fetch initial data
   useEffect(() => {
@@ -198,6 +203,86 @@ export default function GameRoomPage() {
     });
   };
 
+  const joinRoomAsPlayer = async () => {
+    if (!room || !sessionId) return;
+
+    const trimmedName = joinName.trim();
+    if (!trimmedName) {
+      toast({
+        title: "Enter your name",
+        description: "Please enter a player name to join this room.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsJoiningRoom(true);
+    try {
+      const { data: existingPlayers, error: existingError } = await supabase
+        .from('players')
+        .select('*')
+        .eq('room_id', room.id);
+
+      if (existingError) throw existingError;
+
+      // If this session already has a player record, just use it
+      const existingMe = existingPlayers?.find((p: any) => p.session_id === sessionId);
+      if (existingMe) {
+        setCurrentPlayer(existingMe as Player);
+        setPlayers(existingPlayers as Player[]);
+        return;
+      }
+
+      if ((existingPlayers?.length || 0) >= 4) {
+        toast({
+          title: "Room full",
+          description: "This room already has 4 players.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const colorIndex = existingPlayers?.length || 0;
+      const playerColor = PLAYER_COLORS[colorIndex]?.hsl || PLAYER_COLORS[0].hsl;
+
+      const { data: insertedPlayer, error: insertError } = await supabase
+        .from('players')
+        .insert({
+          room_id: room.id,
+          player_name: trimmedName,
+          player_color: playerColor,
+          is_host: false,
+          session_id: sessionId,
+        })
+        .select('*')
+        .single();
+
+      if (insertError) throw insertError;
+
+      localStorage.setItem('fast-eyes.playerName', trimmedName);
+
+      // Send system message (best-effort)
+      await supabase.from('chat_messages').insert({
+        room_id: room.id,
+        player_name: 'System',
+        message: `${trimmedName} joined the room`,
+        is_system: true,
+      });
+
+      setCurrentPlayer(insertedPlayer as Player);
+      setPlayers([...(existingPlayers as Player[] | null | undefined) || [], insertedPlayer as Player]);
+    } catch (error) {
+      console.error('Error joining from room page:', error);
+      toast({
+        title: "Error",
+        description: "Failed to join room. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsJoiningRoom(false);
+    }
+  };
+
   const startGame = async () => {
     if (!room || !sessionId) return;
 
@@ -219,7 +304,7 @@ export default function GameRoomPage() {
       }
 
       const result = data as { success: boolean; error?: string };
-      
+
       if (!result.success) {
         toast({
           title: "Cannot start game",
@@ -424,46 +509,88 @@ export default function GameRoomPage() {
           {/* Game area */}
           <div className="flex-1 flex flex-col items-center justify-center p-4 overflow-auto">
             {isWaiting ? (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="text-center space-y-8"
-              >
-                <div>
-                  <h2 className="font-display text-3xl md:text-4xl text-primary neon-text mb-2">
-                    WAITING FOR PLAYERS
-                  </h2>
-                  <p className="text-muted-foreground">
-                    Share the room code: <span className="text-primary font-display">{roomCode}</span>
-                  </p>
-                  <p className="text-muted-foreground mt-2">
-                    Grid size: <span className="text-secondary">{room.max_numbers} numbers</span>
-                  </p>
-                </div>
-
-                <div className="animate-pulse">
-                  <div className="w-20 h-20 mx-auto rounded-full border-4 border-primary/50 flex items-center justify-center">
-                    <Users className="w-10 h-10 text-primary" />
+              !currentPlayer ? (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="text-center space-y-6 w-full max-w-md"
+                >
+                  <div>
+                    <h2 className="font-display text-3xl md:text-4xl text-primary neon-text mb-2">
+                      JOIN ROOM
+                    </h2>
+                    <p className="text-muted-foreground">
+                      Nhập tên để tham gia phòng <span className="text-primary font-display">{roomCode}</span>
+                    </p>
                   </div>
-                </div>
 
-                {isHost && (
-                  <Button
-                    onClick={startGame}
-                    disabled={players.length < 2}
-                    className="bg-primary hover:bg-primary/80 text-primary-foreground font-display text-xl px-8 py-6"
-                  >
-                    <Play className="w-6 h-6 mr-2" />
-                    START GAME
-                  </Button>
-                )}
+                  <div className="p-6 rounded-xl neon-border bg-card text-left space-y-3">
+                    <Label htmlFor="joinName" className="text-primary font-display text-lg block">
+                      YOUR NAME
+                    </Label>
+                    <Input
+                      id="joinName"
+                      value={joinName}
+                      onChange={(e) => setJoinName(e.target.value)}
+                      placeholder="Enter your name..."
+                      className="bg-muted border-primary/50 focus:border-primary text-lg h-12"
+                      maxLength={20}
+                    />
+                    <Button
+                      onClick={joinRoomAsPlayer}
+                      disabled={isJoiningRoom || !joinName.trim()}
+                      className="w-full bg-primary hover:bg-primary/80 text-primary-foreground font-display text-lg h-12"
+                    >
+                      {isJoiningRoom ? 'JOINING...' : 'JOIN ROOM'}
+                    </Button>
+                  </div>
 
-                {!isHost && (
-                  <p className="text-muted-foreground">
-                    Waiting for host to start the game...
+                  <p className="text-xs text-muted-foreground">
+                    Nếu bạn đang test 2 người chơi trên cùng trình duyệt, hãy mở tab ẩn danh / trình duyệt khác để tạo phiên mới.
                   </p>
-                )}
-              </motion.div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="text-center space-y-8"
+                >
+                  <div>
+                    <h2 className="font-display text-3xl md:text-4xl text-primary neon-text mb-2">
+                      WAITING FOR PLAYERS
+                    </h2>
+                    <p className="text-muted-foreground">
+                      Share the room code: <span className="text-primary font-display">{roomCode}</span>
+                    </p>
+                    <p className="text-muted-foreground mt-2">
+                      Grid size: <span className="text-secondary">{room.max_numbers} numbers</span>
+                    </p>
+                  </div>
+
+                  <div className="animate-pulse">
+                    <div className="w-20 h-20 mx-auto rounded-full border-4 border-primary/50 flex items-center justify-center">
+                      <Users className="w-10 h-10 text-primary" />
+                    </div>
+                  </div>
+
+                  {isHost && (
+                    <Button
+                      onClick={startGame}
+                      disabled={players.length < 2}
+                      className="bg-primary hover:bg-primary/80 text-primary-foreground font-display text-xl px-8 py-6"
+                    >
+                      <Play className="w-6 h-6 mr-2" />
+                      START GAME
+                    </Button>
+                  )}
+
+                  {!isHost && (
+                    <p className="text-muted-foreground">
+                      Waiting for host to start the game...
+                    </p>
+                  )}
+                </motion.div>
+              )
             ) : (
               <div className="w-full max-w-5xl">
                 <div className="flex justify-center mb-6">
