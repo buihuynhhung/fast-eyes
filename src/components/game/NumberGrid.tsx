@@ -27,29 +27,43 @@ export function NumberGrid({
   onNumberClick,
   disabled
 }: NumberGridProps) {
-  // Generate scattered positions for each number
+  // Generate scattered positions for each number using grid-based placement
   const numberPositions = useMemo(() => {
     const random = seededRandom(gridSeed);
     const positions: NumberPosition[] = [];
-    const cellSize = 12; // percentage of container
-    const padding = 8;
+    
+    // Calculate grid size based on number count
+    const gridSize = Math.ceil(Math.sqrt(maxNumbers));
+    const cellWidth = 100 / gridSize;
+    const cellHeight = 100 / gridSize;
+    const jitterX = cellWidth * 0.25; // Random offset within cell
+    const jitterY = cellHeight * 0.25;
+    const padding = 6; // Padding from edges
+    
+    // Create all grid positions
+    const gridPositions: { row: number; col: number }[] = [];
+    for (let row = 0; row < gridSize; row++) {
+      for (let col = 0; col < gridSize; col++) {
+        gridPositions.push({ row, col });
+      }
+    }
+    
+    // Shuffle grid positions for randomness
+    for (let i = gridPositions.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [gridPositions[i], gridPositions[j]] = [gridPositions[j], gridPositions[i]];
+    }
     
     for (let i = 1; i <= maxNumbers; i++) {
-      let attempts = 0;
-      let x: number, y: number;
+      const gridPos = gridPositions[i - 1];
       
-      // Try to find a non-overlapping position
-      do {
-        x = padding + random() * (100 - 2 * padding - cellSize);
-        y = padding + random() * (100 - 2 * padding - cellSize);
-        attempts++;
-      } while (
-        attempts < 50 &&
-        positions.some(p => 
-          Math.abs(p.x - x) < cellSize * 0.8 && 
-          Math.abs(p.y - y) < cellSize * 0.8
-        )
-      );
+      // Base position at center of grid cell
+      const baseX = (gridPos.col + 0.5) * cellWidth;
+      const baseY = (gridPos.row + 0.5) * cellHeight;
+      
+      // Add jitter but keep within bounds
+      const x = Math.max(padding, Math.min(100 - padding, baseX + (random() - 0.5) * jitterX * 2));
+      const y = Math.max(padding, Math.min(100 - padding, baseY + (random() - 0.5) * jitterY * 2));
       
       positions.push({
         number: i,
