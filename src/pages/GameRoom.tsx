@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Copy, Play, ArrowLeft, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,8 @@ import { GameRoom, Player, ChatMessage } from '@/types/game';
 
 export default function GameRoomPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
+  const [searchParams] = useSearchParams();
+  const tournamentId = searchParams.get('tournament');
   const navigate = useNavigate();
   const { toast } = useToast();
   const { sessionId } = useGameSession();
@@ -140,6 +142,14 @@ export default function GameRoomPage() {
           const end = new Date(newRoom.finished_at).getTime();
           setFinalTime(end - start);
           setShowVictory(true);
+          
+          // Advance tournament if this is a tournament match
+          if (tournamentId && room?.id) {
+            (supabase.rpc as any)('advance_tournament', { p_room_id: room.id })
+              .then(({ error }: any) => {
+                if (error) console.error('Error advancing tournament:', error);
+              });
+          }
         }
       })
       .on('postgres_changes', {
@@ -434,7 +444,19 @@ export default function GameRoomPage() {
   };
 
   const handleBackToLobby = () => {
-    navigate('/');
+    if (tournamentId) {
+      // Find tournament code from tournament_matches
+      (supabase as any).from('tournaments').select('tournament_code').eq('id', tournamentId).single()
+        .then(({ data }: any) => {
+          if (data?.tournament_code) {
+            navigate(`/tournament/${data.tournament_code}/bracket`);
+          } else {
+            navigate('/');
+          }
+        });
+    } else {
+      navigate('/');
+    }
   };
 
   if (isLoading) {

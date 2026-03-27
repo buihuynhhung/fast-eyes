@@ -200,6 +200,10 @@ export type Database = {
         Args: { p_room_id: string; p_session_id: string }
         Returns: Json
       }
+      start_tournament: {
+        Args: { p_session_id: string; p_tournament_code: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
