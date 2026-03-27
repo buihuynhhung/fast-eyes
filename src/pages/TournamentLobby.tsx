@@ -24,7 +24,7 @@ export default function TournamentLobby() {
     if (!code || !sessionId) return;
 
     const fetchData = async () => {
-      const { data: t, error } = await supabase
+      const { data: t, error } = await (supabase as any)
         .from('tournaments')
         .select('*')
         .eq('tournament_code', code)
@@ -36,14 +36,14 @@ export default function TournamentLobby() {
         return;
       }
 
-      setTournament(t as unknown as Tournament);
+      setTournament(t as Tournament);
 
       if (t.status !== 'registration') {
         navigate(`/tournament/${code}/bracket`);
         return;
       }
 
-      const { data: ps } = await supabase
+      const { data: ps } = await (supabase as any)
         .from('tournament_players')
         .select('*')
         .eq('tournament_id', t.id);
@@ -67,11 +67,11 @@ export default function TournamentLobby() {
         table: 'tournament_players',
         filter: `tournament_id=eq.${tournament.id}`,
       }, async () => {
-        const { data } = await supabase
+        const { data } = await (supabase as any)
           .from('tournament_players')
           .select('*')
           .eq('tournament_id', tournament.id);
-        setPlayers((data || []) as unknown as TournamentPlayer[]);
+        setPlayers((data || []) as TournamentPlayer[]);
       })
       .on('postgres_changes', {
         event: 'UPDATE',
