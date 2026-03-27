@@ -142,6 +142,14 @@ export default function GameRoomPage() {
           const end = new Date(newRoom.finished_at).getTime();
           setFinalTime(end - start);
           setShowVictory(true);
+          
+          // Advance tournament if this is a tournament match
+          if (tournamentId && room?.id) {
+            (supabase.rpc as any)('advance_tournament', { p_room_id: room.id })
+              .then(({ error }: any) => {
+                if (error) console.error('Error advancing tournament:', error);
+              });
+          }
         }
       })
       .on('postgres_changes', {
