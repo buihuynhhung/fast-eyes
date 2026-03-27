@@ -33,24 +33,24 @@ export default function TournamentBracket() {
 
   const fetchAll = async (tournamentId: string) => {
     const [pRes, rRes, mRes] = await Promise.all([
-      supabase.from('tournament_players').select('*').eq('tournament_id', tournamentId),
-      supabase.from('tournament_rounds').select('*').eq('tournament_id', tournamentId),
-      supabase.from('tournament_matches').select('*').eq('tournament_id', tournamentId),
+      (supabase as any).from('tournament_players').select('*').eq('tournament_id', tournamentId),
+      (supabase as any).from('tournament_rounds').select('*').eq('tournament_id', tournamentId),
+      (supabase as any).from('tournament_matches').select('*').eq('tournament_id', tournamentId),
     ]);
 
-    setPlayers((pRes.data || []) as unknown as TournamentPlayer[]);
-    setRounds((rRes.data || []) as unknown as TournamentRound[]);
-    const matchesData = (mRes.data || []) as unknown as TournamentMatch[];
+    setPlayers((pRes.data || []) as TournamentPlayer[]);
+    setRounds((rRes.data || []) as TournamentRound[]);
+    const matchesData = (mRes.data || []) as TournamentMatch[];
     setMatches(matchesData);
 
     // Fetch match players
     const matchIds = matchesData.map(m => m.id);
     if (matchIds.length > 0) {
-      const { data: mpData } = await supabase
+      const { data: mpData } = await (supabase as any)
         .from('tournament_match_players')
         .select('*')
         .in('match_id', matchIds);
-      setMatchPlayers((mpData || []) as unknown as TournamentMatchPlayer[]);
+      setMatchPlayers((mpData || []) as TournamentMatchPlayer[]);
     }
 
     // Fetch room codes
@@ -70,7 +70,7 @@ export default function TournamentBracket() {
     if (!code) return;
 
     const init = async () => {
-      const { data: t, error } = await supabase
+      const { data: t, error } = await (supabase as any)
         .from('tournaments')
         .select('*')
         .eq('tournament_code', code)
