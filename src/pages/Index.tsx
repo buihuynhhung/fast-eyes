@@ -122,7 +122,7 @@ const Index = () => {
     localStorage.setItem('fast-eyes.playerName', playerName.trim());
     setIsCreatingTournament(true);
     try {
-      const { data, error } = await supabase.rpc('create_tournament', {
+      const { data, error } = await (supabase.rpc as any)('create_tournament', {
         p_name: tournamentName.trim(),
         p_host_id: sessionId,
         p_format: tournamentFormat,
@@ -157,7 +157,7 @@ const Index = () => {
     localStorage.setItem('fast-eyes.playerName', playerName.trim());
     setIsJoiningTournament(true);
     try {
-      const { data, error } = await supabase.rpc('join_tournament', {
+      const { data, error } = await (supabase.rpc as any)('join_tournament', {
         p_tournament_code: tournamentCode.toUpperCase().trim(),
         p_session_id: sessionId,
         p_player_name: playerName.trim(),
