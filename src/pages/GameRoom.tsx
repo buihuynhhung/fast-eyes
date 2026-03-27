@@ -444,7 +444,19 @@ export default function GameRoomPage() {
   };
 
   const handleBackToLobby = () => {
-    navigate('/');
+    if (tournamentId) {
+      // Find tournament code from tournament_matches
+      (supabase as any).from('tournaments').select('tournament_code').eq('id', tournamentId).single()
+        .then(({ data }: any) => {
+          if (data?.tournament_code) {
+            navigate(`/tournament/${data.tournament_code}/bracket`);
+          } else {
+            navigate('/');
+          }
+        });
+    } else {
+      navigate('/');
+    }
   };
 
   if (isLoading) {
