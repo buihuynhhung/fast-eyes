@@ -20,6 +20,8 @@ import { GameRoom, Player, ChatMessage } from '@/types/game';
 
 export default function GameRoomPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
+  const [searchParams] = useSearchParams();
+  const tournamentId = searchParams.get('tournament');
   const navigate = useNavigate();
   const { toast } = useToast();
   const { sessionId } = useGameSession();
