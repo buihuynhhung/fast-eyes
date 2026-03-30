@@ -178,17 +178,250 @@ export type Database = {
           },
         ]
       }
+      tournament_match_players: {
+        Row: {
+          created_at: string
+          final_score: number
+          id: string
+          match_id: string
+          tournament_player_id: string
+        }
+        Insert: {
+          created_at?: string
+          final_score?: number
+          id?: string
+          match_id: string
+          tournament_player_id: string
+        }
+        Update: {
+          created_at?: string
+          final_score?: number
+          id?: string
+          match_id?: string
+          tournament_player_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_match_players_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_match_players_tournament_player_id_fkey"
+            columns: ["tournament_player_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tournament_matches: {
+        Row: {
+          created_at: string
+          id: string
+          is_bye: boolean
+          match_number: number
+          room_id: string | null
+          round_id: string
+          status: string
+          tournament_id: string
+          winner_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_bye?: boolean
+          match_number: number
+          room_id?: string | null
+          round_id: string
+          status?: string
+          tournament_id: string
+          winner_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_bye?: boolean
+          match_number?: number
+          room_id?: string | null
+          round_id?: string
+          status?: string
+          tournament_id?: string
+          winner_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_matches_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "game_rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_matches_round_id_fkey"
+            columns: ["round_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_rounds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_matches_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_matches_winner_id_fkey"
+            columns: ["winner_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tournament_players: {
+        Row: {
+          created_at: string
+          id: string
+          is_eliminated: boolean
+          player_color: string
+          player_name: string
+          session_id: string
+          total_score: number
+          tournament_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_eliminated?: boolean
+          player_color?: string
+          player_name: string
+          session_id: string
+          total_score?: number
+          tournament_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_eliminated?: boolean
+          player_color?: string
+          player_name?: string
+          session_id?: string
+          total_score?: number
+          tournament_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_players_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tournament_rounds: {
+        Row: {
+          created_at: string
+          id: string
+          round_number: number
+          status: string
+          tournament_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          round_number: number
+          status?: string
+          tournament_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          round_number?: number
+          status?: string
+          tournament_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_rounds_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tournaments: {
+        Row: {
+          created_at: string
+          format: string
+          grid_size: number
+          host_id: string
+          id: string
+          max_players: number
+          name: string
+          status: string
+          tournament_code: string
+        }
+        Insert: {
+          created_at?: string
+          format?: string
+          grid_size?: number
+          host_id: string
+          id?: string
+          max_players?: number
+          name: string
+          status?: string
+          tournament_code: string
+        }
+        Update: {
+          created_at?: string
+          format?: string
+          grid_size?: number
+          host_id?: string
+          id?: string
+          max_players?: number
+          name?: string
+          status?: string
+          tournament_code?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      advance_tournament: { Args: { p_room_id: string }; Returns: Json }
       claim_number: {
         Args: {
           p_number: number
           p_player_id: string
           p_room_id: string
           p_session_id: string
+        }
+        Returns: Json
+      }
+      create_tournament: {
+        Args: {
+          p_format: string
+          p_grid_size: number
+          p_host_id: string
+          p_host_name: string
+          p_max_players: number
+          p_name: string
+        }
+        Returns: Json
+      }
+      join_tournament: {
+        Args: {
+          p_player_name: string
+          p_session_id: string
+          p_tournament_code: string
         }
         Returns: Json
       }
