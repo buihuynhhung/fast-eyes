@@ -665,7 +665,7 @@ export default function GameRoomPage() {
               <div className="w-full max-w-5xl">
                 <div className="flex justify-center mb-6">
                   <TargetIndicator
-                    currentTarget={room.current_target}
+                    currentTarget={effectiveTarget}
                     maxNumbers={room.max_numbers}
                   />
                 </div>
@@ -673,7 +673,7 @@ export default function GameRoomPage() {
                 <CanvasNumberGrid
                   maxNumbers={room.max_numbers}
                   gridSeed={room.grid_seed || room.room_code}
-                  currentTarget={room.current_target}
+                  currentTarget={effectiveTarget}
                   claimedNumbers={claimedNumbers}
                   onNumberClick={handleNumberClick}
                   disabled={room.status !== 'playing'}
