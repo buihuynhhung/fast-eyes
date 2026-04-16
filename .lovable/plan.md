@@ -1,26 +1,24 @@
 
 
-# Tạo PDF Luật chơi Fast Eyes
+# Tối ưu tốc độ phản hồi khi click số
 
-## Tổng quan
-Tạo file PDF chuyên nghiệp chứa luật chơi đầy đủ của game Fast Eyes Quick Hands, bao gồm Quick Play và Tournament.
+## Vấn đề
+Khi người chơi click một số, ứng dụng gửi request tới server (`claim_number` RPC) và **chờ phản hồi** trước khi cập nhật giao diện. Mỗi lần click mất ~100-300ms round-trip, gây cảm giác chậm và lag.
 
-## Nội dung PDF
+## Giải pháp: Optimistic UI Update
+Cập nhật giao diện **ngay lập tức** khi click, không chờ server trả về. Nếu server từ chối (số đã bị người khác claim), rollback lại.
 
-1. **Trang bìa** — Tên game "FAST EYES QUICK HANDS", tagline
-2. **Giới thiệu** — Game đua tốc độ tìm số, 1-4 người chơi
-3. **Quick Play**
-   - Tạo phòng: chọn grid size (9-100), chia sẻ mã phòng 6 ký tự
-   - Tham gia: nhập mã phòng, tối đa 4 người
-   - Cách chơi: click số theo thứ tự 1→2→3..., mỗi số = 1 điểm, ai nhiều nhất thắng
-4. **Tournament**
-   - Knockout: chia cặp, thua = loại, số lẻ có bye
-   - Round Robin: đấu vòng tròn, tổng điểm xếp hạng
-   - Tùy chỉnh 2-32 người, grid size tùy ý
-5. **Mẹo chơi**
+## Thay đổi kỹ thuật
 
-## Kỹ thuật
-- Dùng `reportlab` để tạo PDF với design đẹp (màu tối, neon accent matching game theme)
-- Output: `/mnt/documents/fast_eyes_rules.pdf`
-- QA bằng `pdftoppm` để kiểm tra visual
+| File | Hành động |
+|------|-----------|
+| `src/pages/GameRoom.tsx` | Sửa `handleNumberClick` — thêm optimistic update |
+
+### Chi tiết `handleNumberClick`:
+1. **Trước khi gọi RPC**: Ngay lập tức cập nhật `claimedNumbers` map với số vừa click (màu của người chơi hiện tại), và tăng `room.current_target` lên 1 trong local state
+2. **Gọi RPC** `claim_number` như cũ (không await blocking UI)
+3. **Nếu thất bại**: Rollback — xóa số khỏi `claimedNumbers`, giảm `current_target` lại
+4. **Bỏ check `number !== room.current_target`** từ state cũ, thay bằng tracking local target riêng để cho phép click liên tiếp nhanh
+
+Kết quả: người chơi có thể click liên tục không cần chờ, UI phản hồi tức thì.
 
