@@ -335,13 +335,41 @@ export default function GameRoomPage() {
     }
   };
 
+  // Local target tracker for optimistic updates — allows rapid sequential clicks
+  const [localTarget, setLocalTarget] = useState<number | null>(null);
+  const effectiveTarget = localTarget ?? room?.current_target ?? 1;
+
+  // Sync localTarget when server target catches up or jumps ahead (e.g. other player claimed)
+  useEffect(() => {
+    if (room?.current_target != null) {
+      setLocalTarget(prev => {
+        // If server is ahead or equal, trust server
+        if (prev === null || room.current_target >= prev) return null;
+        // Otherwise keep our optimistic local target
+        return prev;
+      });
+    }
+  }, [room?.current_target]);
+
   const handleNumberClick = useCallback(async (number: number) => {
     if (!room || !currentPlayer || room.status !== 'playing') return;
-    if (number !== room.current_target) return;
+    if (number !== effectiveTarget) return;
     if (claimedNumbers.has(number)) return;
 
+    // --- Optimistic UI update ---
+    const prevTarget = effectiveTarget;
+    setLocalTarget(number + 1);
+    setClaimedNumbers(prev => {
+      const newMap = new Map(prev);
+      newMap.set(number, {
+        playerId: currentPlayer.id,
+        playerColor: currentPlayer.player_color,
+      });
+      return newMap;
+    });
+
+    // Fire RPC in background
     try {
-      // Use atomic claim_number function to prevent race conditions
       const { data, error } = await supabase.rpc('claim_number', {
         p_room_id: room.id,
         p_player_id: currentPlayer.id,
@@ -351,26 +379,39 @@ export default function GameRoomPage() {
 
       if (error) {
         console.error('Error claiming number:', error);
+        // Rollback
+        setClaimedNumbers(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(number);
+          return newMap;
+        });
+        setLocalTarget(prevTarget);
         return;
       }
 
       const result = data as { success: boolean; error?: string; finished?: boolean };
-      
+
       if (!result.success) {
-        // Number was already claimed by someone else - no action needed
+        // Rollback — someone else claimed it
+        setClaimedNumbers(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(number);
+          return newMap;
+        });
+        setLocalTarget(prevTarget);
         return;
       }
 
-      // Send milestone or finish messages
+      // Send milestone or finish messages (best-effort, don't block)
       if (result.finished) {
-        await supabase.from('chat_messages').insert({
+        supabase.from('chat_messages').insert({
           room_id: room.id,
           player_name: 'System',
           message: `${currentPlayer.player_name} finished the game!`,
           is_system: true,
         });
       } else if (number % 10 === 0) {
-        await supabase.from('chat_messages').insert({
+        supabase.from('chat_messages').insert({
           room_id: room.id,
           player_name: 'System',
           message: `${currentPlayer.player_name} reached number ${number}!`,
@@ -379,8 +420,15 @@ export default function GameRoomPage() {
       }
     } catch (error) {
       console.error('Error claiming number:', error);
+      // Rollback
+      setClaimedNumbers(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(number);
+        return newMap;
+      });
+      setLocalTarget(prevTarget);
     }
-  }, [room, currentPlayer, claimedNumbers, sessionId]);
+  }, [room, currentPlayer, claimedNumbers, sessionId, effectiveTarget]);
 
   const sendMessage = async (message: string) => {
     if (!room || !currentPlayer) return;
@@ -617,7 +665,7 @@ export default function GameRoomPage() {
               <div className="w-full max-w-5xl">
                 <div className="flex justify-center mb-6">
                   <TargetIndicator
-                    currentTarget={room.current_target}
+                    currentTarget={effectiveTarget}
                     maxNumbers={room.max_numbers}
                   />
                 </div>
@@ -625,7 +673,7 @@ export default function GameRoomPage() {
                 <CanvasNumberGrid
                   maxNumbers={room.max_numbers}
                   gridSeed={room.grid_seed || room.room_code}
-                  currentTarget={room.current_target}
+                  currentTarget={effectiveTarget}
                   claimedNumbers={claimedNumbers}
                   onNumberClick={handleNumberClick}
                   disabled={room.status !== 'playing'}
