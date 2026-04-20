@@ -1,24 +1,40 @@
 
 
-# Tối ưu tốc độ phản hồi khi click số
+# Tự động thu nhỏ grid để vừa màn hình
 
 ## Vấn đề
-Khi người chơi click một số, ứng dụng gửi request tới server (`claim_number` RPC) và **chờ phản hồi** trước khi cập nhật giao diện. Mỗi lần click mất ~100-300ms round-trip, gây cảm giác chậm và lag.
+Khi grid size lớn (vd 81-100 số), canvas có chiều rộng cố định `min(rect.width, 800)` và luôn vuông (aspect-ratio 1:1). Nếu màn hình thấp hơn rộng (laptop ngang), canvas bị tràn xuống dưới → phải scroll.
 
-## Giải pháp: Optimistic UI Update
-Cập nhật giao diện **ngay lập tức** khi click, không chờ server trả về. Nếu server từ chối (số đã bị người khác claim), rollback lại.
+## Giải pháp
+Thay đổi cách tính kích thước canvas trong `CanvasNumberGrid.tsx`: tính toán dựa trên **không gian khả dụng (cả width và height)** của viewport, không chỉ width của container.
 
-## Thay đổi kỹ thuật
+### Thay đổi chính trong `src/components/game/CanvasNumberGrid.tsx`
 
+1. **Tính kích thước available height**:
+   - Đo vị trí top của container so với viewport
+   - Available height = `window.innerHeight - container.top - paddingBottom`
+   
+2. **Canvas size = min(available width, available height, 800)**:
+   - Đảm bảo canvas vuông và vừa hoàn toàn trong khung nhìn
+   - Không bao giờ tràn ra ngoài viewport
+
+3. **Cell size tự động co giãn**:
+   - `cellSize = size * 0.055` đã tỉ lệ theo canvas size, nên khi canvas nhỏ lại thì số cũng nhỏ theo tự nhiên
+   - Với grid lớn (100 số), tăng tỉ lệ cell một chút (vd 0.05) để vẫn dễ click nhưng không chồng chéo
+
+4. **Layout container**:
+   - Bỏ `max-w-4xl` cố định trên motion.div, dùng flex center để canvas tự căn giữa
+   - GameRoom layout cần đảm bảo phần grid có flex-1 để chiếm không gian còn lại
+
+### File ảnh hưởng
 | File | Hành động |
 |------|-----------|
-| `src/pages/GameRoom.tsx` | Sửa `handleNumberClick` — thêm optimistic update |
+| `src/components/game/CanvasNumberGrid.tsx` | Sửa logic tính `size` dựa trên cả width và height viewport |
+| `src/pages/GameRoom.tsx` | Kiểm tra & điều chỉnh layout để grid container có chiều cao linh hoạt (nếu cần) |
 
-### Chi tiết `handleNumberClick`:
-1. **Trước khi gọi RPC**: Ngay lập tức cập nhật `claimedNumbers` map với số vừa click (màu của người chơi hiện tại), và tăng `room.current_target` lên 1 trong local state
-2. **Gọi RPC** `claim_number` như cũ (không await blocking UI)
-3. **Nếu thất bại**: Rollback — xóa số khỏi `claimedNumbers`, giảm `current_target` lại
-4. **Bỏ check `number !== room.current_target`** từ state cũ, thay bằng tracking local target riêng để cho phép click liên tiếp nhanh
-
-Kết quả: người chơi có thể click liên tục không cần chờ, UI phản hồi tức thì.
+### Kết quả
+- Grid luôn vừa 1 màn hình, không cần scroll
+- Trên màn hình nhỏ/grid lớn: số tự động nhỏ lại
+- Trên màn hình lớn/grid nhỏ: vẫn giữ kích thước thoải mái (cap 800px)
+- Resize window → canvas tự cập nhật
 
