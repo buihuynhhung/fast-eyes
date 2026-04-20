@@ -577,7 +577,7 @@ export default function GameRoomPage() {
         {/* Main content */}
         <div className="flex-1 flex overflow-hidden">
           {/* Game area */}
-          <div className="flex-1 flex flex-col items-center justify-center p-4 overflow-auto">
+          <div className="flex-1 flex flex-col items-center justify-start p-4 overflow-hidden min-h-0">
             {isWaiting ? (
               !currentPlayer ? (
                 <motion.div
