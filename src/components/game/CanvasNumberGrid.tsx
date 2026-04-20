@@ -85,8 +85,13 @@ export function CanvasNumberGrid({
 
     const rect = container.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    const size = Math.min(rect.width, 800);
-    
+
+    // Available width from container, available height from viewport
+    const paddingBottom = 16;
+    const availableWidth = rect.width;
+    const availableHeight = Math.max(200, window.innerHeight - rect.top - paddingBottom);
+    const size = Math.max(240, Math.min(availableWidth, availableHeight, 800));
+
     canvas.width = size * dpr;
     canvas.height = size * dpr;
     canvas.style.width = `${size}px`;
@@ -105,7 +110,10 @@ export function CanvasNumberGrid({
     ctx.lineWidth = 1;
     ctx.strokeRect(0, 0, size, size);
 
-    const cellSize = size * 0.055; // Size of number cell
+    // Scale cell size relative to grid density so larger grids stay readable & non-overlapping
+    const gridSize = Math.ceil(Math.sqrt(maxNumbers));
+    const cellRatio = Math.min(0.08, 0.9 / gridSize); // ~0.09 for 100, 0.08 cap for small grids
+    const cellSize = size * cellRatio;
     const fontSize = cellSize * 0.5;
 
     numberPositions.forEach((pos) => {
@@ -173,6 +181,13 @@ export function CanvasNumberGrid({
     return () => window.removeEventListener('resize', handleResize);
   }, [drawCanvas]);
 
+  // Compute cell hit radius in % units (matches drawCanvas)
+  const getCellPercent = useCallback(() => {
+    const gridSize = Math.ceil(Math.sqrt(maxNumbers));
+    const cellRatio = Math.min(0.08, 0.9 / gridSize);
+    return cellRatio * 100; // size in % of canvas
+  }, [maxNumbers]);
+
   // Handle click
   const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (disabled) return;
@@ -184,24 +199,22 @@ export function CanvasNumberGrid({
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     
-    const cellSizePercent = 5.5;
+    const cellSizePercent = getCellPercent();
     
     // Find clicked number
     for (const pos of positionsRef.current) {
       const claimed = claimedNumbers.get(pos.number);
       if (claimed) continue; // Skip claimed numbers
       
-      // Calculate distance considering rotation
       const dx = x - pos.x;
       const dy = y - pos.y;
       
-      // Simple bounding box check (rotation makes it slightly larger hit area)
       if (Math.abs(dx) < cellSizePercent && Math.abs(dy) < cellSizePercent) {
         onNumberClick(pos.number);
         return;
       }
     }
-  }, [disabled, claimedNumbers, onNumberClick]);
+  }, [disabled, claimedNumbers, onNumberClick, getCellPercent]);
 
   // Update cursor based on hover
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -217,7 +230,7 @@ export function CanvasNumberGrid({
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     
-    const cellSizePercent = 5.5;
+    const cellSizePercent = getCellPercent();
     
     for (const pos of positionsRef.current) {
       const claimed = claimedNumbers.get(pos.number);
@@ -233,7 +246,7 @@ export function CanvasNumberGrid({
     }
     
     e.currentTarget.style.cursor = 'default';
-  }, [disabled, claimedNumbers]);
+  }, [disabled, claimedNumbers, getCellPercent]);
 
   return (
     <motion.div
@@ -241,13 +254,13 @@ export function CanvasNumberGrid({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
-      className="w-full max-w-4xl mx-auto p-4"
+      className="w-full h-full flex items-center justify-center p-2"
     >
       <canvas
         ref={canvasRef}
         onClick={handleClick}
         onMouseMove={handleMouseMove}
-        className="rounded-xl mx-auto"
+        className="rounded-xl"
         style={{ touchAction: 'none' }}
       />
     </motion.div>
