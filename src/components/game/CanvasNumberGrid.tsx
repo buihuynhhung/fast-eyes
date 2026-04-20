@@ -85,8 +85,13 @@ export function CanvasNumberGrid({
 
     const rect = container.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    const size = Math.min(rect.width, 800);
-    
+
+    // Available width from container, available height from viewport
+    const paddingBottom = 16;
+    const availableWidth = rect.width;
+    const availableHeight = Math.max(200, window.innerHeight - rect.top - paddingBottom);
+    const size = Math.max(240, Math.min(availableWidth, availableHeight, 800));
+
     canvas.width = size * dpr;
     canvas.height = size * dpr;
     canvas.style.width = `${size}px`;
@@ -105,7 +110,10 @@ export function CanvasNumberGrid({
     ctx.lineWidth = 1;
     ctx.strokeRect(0, 0, size, size);
 
-    const cellSize = size * 0.055; // Size of number cell
+    // Scale cell size relative to grid density so larger grids stay readable & non-overlapping
+    const gridSize = Math.ceil(Math.sqrt(maxNumbers));
+    const cellRatio = Math.min(0.08, 0.9 / gridSize); // ~0.09 for 100, 0.08 cap for small grids
+    const cellSize = size * cellRatio;
     const fontSize = cellSize * 0.5;
 
     numberPositions.forEach((pos) => {
