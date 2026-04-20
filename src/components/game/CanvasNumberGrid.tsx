@@ -181,6 +181,13 @@ export function CanvasNumberGrid({
     return () => window.removeEventListener('resize', handleResize);
   }, [drawCanvas]);
 
+  // Compute cell hit radius in % units (matches drawCanvas)
+  const getCellPercent = useCallback(() => {
+    const gridSize = Math.ceil(Math.sqrt(maxNumbers));
+    const cellRatio = Math.min(0.08, 0.9 / gridSize);
+    return cellRatio * 100; // size in % of canvas
+  }, [maxNumbers]);
+
   // Handle click
   const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (disabled) return;
@@ -192,24 +199,22 @@ export function CanvasNumberGrid({
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     
-    const cellSizePercent = 5.5;
+    const cellSizePercent = getCellPercent();
     
     // Find clicked number
     for (const pos of positionsRef.current) {
       const claimed = claimedNumbers.get(pos.number);
       if (claimed) continue; // Skip claimed numbers
       
-      // Calculate distance considering rotation
       const dx = x - pos.x;
       const dy = y - pos.y;
       
-      // Simple bounding box check (rotation makes it slightly larger hit area)
       if (Math.abs(dx) < cellSizePercent && Math.abs(dy) < cellSizePercent) {
         onNumberClick(pos.number);
         return;
       }
     }
-  }, [disabled, claimedNumbers, onNumberClick]);
+  }, [disabled, claimedNumbers, onNumberClick, getCellPercent]);
 
   // Update cursor based on hover
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -225,7 +230,7 @@ export function CanvasNumberGrid({
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     
-    const cellSizePercent = 5.5;
+    const cellSizePercent = getCellPercent();
     
     for (const pos of positionsRef.current) {
       const claimed = claimedNumbers.get(pos.number);
@@ -241,7 +246,7 @@ export function CanvasNumberGrid({
     }
     
     e.currentTarget.style.cursor = 'default';
-  }, [disabled, claimedNumbers]);
+  }, [disabled, claimedNumbers, getCellPercent]);
 
   return (
     <motion.div
@@ -249,13 +254,13 @@ export function CanvasNumberGrid({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
-      className="w-full max-w-4xl mx-auto p-4"
+      className="w-full h-full flex items-center justify-center p-2"
     >
       <canvas
         ref={canvasRef}
         onClick={handleClick}
         onMouseMove={handleMouseMove}
-        className="rounded-xl mx-auto"
+        className="rounded-xl"
         style={{ touchAction: 'none' }}
       />
     </motion.div>
