@@ -662,22 +662,24 @@ export default function GameRoomPage() {
                 </motion.div>
               )
             ) : (
-              <div className="w-full max-w-5xl">
-                <div className="flex justify-center mb-6">
+              <div className="w-full h-full flex flex-col min-h-0">
+                <div className="flex justify-center mb-4 shrink-0">
                   <TargetIndicator
                     currentTarget={effectiveTarget}
                     maxNumbers={room.max_numbers}
                   />
                 </div>
                 
-                <CanvasNumberGrid
-                  maxNumbers={room.max_numbers}
-                  gridSeed={room.grid_seed || room.room_code}
-                  currentTarget={effectiveTarget}
-                  claimedNumbers={claimedNumbers}
-                  onNumberClick={handleNumberClick}
-                  disabled={room.status !== 'playing'}
-                />
+                <div className="flex-1 min-h-0 w-full">
+                  <CanvasNumberGrid
+                    maxNumbers={room.max_numbers}
+                    gridSeed={room.grid_seed || room.room_code}
+                    currentTarget={effectiveTarget}
+                    claimedNumbers={claimedNumbers}
+                    onNumberClick={handleNumberClick}
+                    disabled={room.status !== 'playing'}
+                  />
+                </div>
               </div>
             )}
           </div>
