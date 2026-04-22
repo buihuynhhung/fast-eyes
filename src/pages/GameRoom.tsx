@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Copy, Play, ArrowLeft, Users } from 'lucide-react';
+import { Copy, Play, ArrowLeft, Users, Eye, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -213,6 +213,15 @@ export default function GameRoomPage() {
     });
   };
 
+  const copySpectatorLink = () => {
+    const link = `${window.location.origin}/watch/${roomCode}`;
+    navigator.clipboard.writeText(link);
+    toast({
+      title: "Spectator link copied!",
+      description: "Share it with viewers to let them watch the match.",
+    });
+  };
+
   const joinRoomAsPlayer = async () => {
     if (!room || !sessionId) return;
 
@@ -243,7 +252,8 @@ export default function GameRoomPage() {
         return;
       }
 
-      if ((existingPlayers?.length || 0) >= 4) {
+      const activeCount = (existingPlayers || []).filter((p: any) => !p.is_spectator).length;
+      if (activeCount >= 4) {
         toast({
           title: "Room full",
           description: "This room already has 4 players.",
@@ -252,7 +262,7 @@ export default function GameRoomPage() {
         return;
       }
 
-      const colorIndex = existingPlayers?.length || 0;
+      const colorIndex = ((existingPlayers?.length || 0)) % PLAYER_COLORS.length;
       const playerColor = PLAYER_COLORS[colorIndex]?.hsl || PLAYER_COLORS[0].hsl;
 
       const { data: insertedPlayer, error: insertError } = await supabase
@@ -524,8 +534,10 @@ export default function GameRoomPage() {
   }
 
   const isHost = currentPlayer?.is_host;
+  const isSpectator = currentPlayer?.is_spectator === true;
   const isWaiting = room.status === 'waiting';
   const isPlaying = room.status === 'playing';
+  const activePlayerCount = players.filter(p => !p.is_spectator).length;
 
   return (
     <div className="min-h-screen bg-background cyber-grid relative">
