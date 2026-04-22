@@ -1,10 +1,17 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Zap, Users, Plus, ArrowRight, Trophy, Swords } from 'lucide-react';
+import { Zap, Users, Plus, ArrowRight, Trophy, Swords, Eye, Gamepad2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { generateRoomCode, PLAYER_COLORS } from '@/lib/gameUtils';
@@ -19,6 +26,7 @@ const Index = () => {
   const [maxNumbers, setMaxNumbers] = useState(25);
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [showRoleDialog, setShowRoleDialog] = useState(false);
 
   // Tournament state
   const [showTournament, setShowTournament] = useState(false);
@@ -30,7 +38,16 @@ const Index = () => {
   const [isCreatingTournament, setIsCreatingTournament] = useState(false);
   const [isJoiningTournament, setIsJoiningTournament] = useState(false);
 
-  const createRoom = async () => {
+  const handleCreateClick = () => {
+    if (!playerName.trim()) {
+      toast({ title: "Enter your name", description: "Please enter a player name to continue.", variant: "destructive" });
+      return;
+    }
+    setShowRoleDialog(true);
+  };
+
+  const createRoom = async (asSpectator: boolean) => {
+    setShowRoleDialog(false);
     if (!playerName.trim()) {
       toast({ title: "Enter your name", description: "Please enter a player name to continue.", variant: "destructive" });
       return;
@@ -48,9 +65,19 @@ const Index = () => {
       if (roomError) throw roomError;
       const { error: playerError } = await supabase
         .from('players')
-        .insert({ room_id: room.id, player_name: playerName.trim(), player_color: PLAYER_COLORS[0].hsl, is_host: true, session_id: sessionId });
+        .insert({
+          room_id: room.id,
+          player_name: playerName.trim(),
+          player_color: PLAYER_COLORS[0].hsl,
+          is_host: true,
+          is_spectator: asSpectator,
+          session_id: sessionId,
+        });
       if (playerError) throw playerError;
-      await supabase.from('chat_messages').insert({ room_id: room.id, player_name: 'System', message: `${playerName.trim()} created the room`, is_system: true });
+      const sysMsg = asSpectator
+        ? `${playerName.trim()} created the room as game master`
+        : `${playerName.trim()} created the room`;
+      await supabase.from('chat_messages').insert({ room_id: room.id, player_name: 'System', message: sysMsg, is_system: true });
       navigate(`/room/${newRoomCode}`);
     } catch (error) {
       console.error('Error creating room:', error);
@@ -86,7 +113,8 @@ const Index = () => {
         return;
       }
       const { data: existingPlayers } = await supabase.from('players').select('*').eq('room_id', room.id);
-      if (existingPlayers && existingPlayers.length >= 4) {
+      const activePlayerCount = (existingPlayers || []).filter((p: any) => !p.is_spectator).length;
+      if (activePlayerCount >= 4) {
         toast({ title: "Room full", description: "This room already has 4 players.", variant: "destructive" });
         return;
       }
