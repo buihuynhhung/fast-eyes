@@ -123,7 +123,7 @@ const Index = () => {
         navigate(`/room/${roomCode.toUpperCase()}`);
         return;
       }
-      const colorIndex = existingPlayers?.length || 0;
+      const colorIndex = (existingPlayers?.length || 0) % PLAYER_COLORS.length;
       const { error: playerError } = await supabase
         .from('players')
         .insert({ room_id: room.id, player_name: playerName.trim(), player_color: PLAYER_COLORS[colorIndex].hsl, is_host: false, session_id: sessionId });
