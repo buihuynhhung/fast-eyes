@@ -485,6 +485,48 @@ const Index = () => {
           <p>2-4 players • Real-time multiplayer • Tournaments • No sign-up required</p>
         </motion.div>
       </div>
+
+      {/* Role choice dialog */}
+      <Dialog open={showRoleDialog} onOpenChange={setShowRoleDialog}>
+        <DialogContent className="bg-card border-secondary">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl text-secondary">
+              CHỌN VAI TRÒ
+            </DialogTitle>
+            <DialogDescription>
+              Bạn muốn vừa chơi vừa quản lý phòng, hay chỉ làm quản trò?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 mt-2">
+            <button
+              onClick={() => createRoom(false)}
+              disabled={isCreating}
+              className="group flex items-start gap-4 p-4 rounded-lg border-2 border-primary/40 hover:border-primary hover:bg-primary/10 transition-all text-left disabled:opacity-50"
+            >
+              <Gamepad2 className="w-8 h-8 text-primary shrink-0 mt-1" />
+              <div className="flex-1">
+                <div className="font-display text-lg text-primary">TÔI SẼ CHƠI</div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Vừa chơi vừa quản lý phòng (chế độ thường).
+                </p>
+              </div>
+            </button>
+            <button
+              onClick={() => createRoom(true)}
+              disabled={isCreating}
+              className="group flex items-start gap-4 p-4 rounded-lg border-2 border-accent/40 hover:border-accent hover:bg-accent/10 transition-all text-left disabled:opacity-50"
+            >
+              <Eye className="w-8 h-8 text-accent shrink-0 mt-1" />
+              <div className="flex-1">
+                <div className="font-display text-lg text-accent">CHỈ LÀM QUẢN TRÒ</div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Không chơi, có quyền điều khiển + chia sẻ link cho khán giả xem.
+                </p>
+              </div>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
