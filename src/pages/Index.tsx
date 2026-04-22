@@ -1,10 +1,17 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Zap, Users, Plus, ArrowRight, Trophy, Swords } from 'lucide-react';
+import { Zap, Users, Plus, ArrowRight, Trophy, Swords, Eye, Gamepad2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { generateRoomCode, PLAYER_COLORS } from '@/lib/gameUtils';
@@ -19,6 +26,7 @@ const Index = () => {
   const [maxNumbers, setMaxNumbers] = useState(25);
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [showRoleDialog, setShowRoleDialog] = useState(false);
 
   // Tournament state
   const [showTournament, setShowTournament] = useState(false);
@@ -30,7 +38,16 @@ const Index = () => {
   const [isCreatingTournament, setIsCreatingTournament] = useState(false);
   const [isJoiningTournament, setIsJoiningTournament] = useState(false);
 
-  const createRoom = async () => {
+  const handleCreateClick = () => {
+    if (!playerName.trim()) {
+      toast({ title: "Enter your name", description: "Please enter a player name to continue.", variant: "destructive" });
+      return;
+    }
+    setShowRoleDialog(true);
+  };
+
+  const createRoom = async (asSpectator: boolean) => {
+    setShowRoleDialog(false);
     if (!playerName.trim()) {
       toast({ title: "Enter your name", description: "Please enter a player name to continue.", variant: "destructive" });
       return;
@@ -48,9 +65,19 @@ const Index = () => {
       if (roomError) throw roomError;
       const { error: playerError } = await supabase
         .from('players')
-        .insert({ room_id: room.id, player_name: playerName.trim(), player_color: PLAYER_COLORS[0].hsl, is_host: true, session_id: sessionId });
+        .insert({
+          room_id: room.id,
+          player_name: playerName.trim(),
+          player_color: PLAYER_COLORS[0].hsl,
+          is_host: true,
+          is_spectator: asSpectator,
+          session_id: sessionId,
+        });
       if (playerError) throw playerError;
-      await supabase.from('chat_messages').insert({ room_id: room.id, player_name: 'System', message: `${playerName.trim()} created the room`, is_system: true });
+      const sysMsg = asSpectator
+        ? `${playerName.trim()} created the room as game master`
+        : `${playerName.trim()} created the room`;
+      await supabase.from('chat_messages').insert({ room_id: room.id, player_name: 'System', message: sysMsg, is_system: true });
       navigate(`/room/${newRoomCode}`);
     } catch (error) {
       console.error('Error creating room:', error);
@@ -86,7 +113,8 @@ const Index = () => {
         return;
       }
       const { data: existingPlayers } = await supabase.from('players').select('*').eq('room_id', room.id);
-      if (existingPlayers && existingPlayers.length >= 4) {
+      const activePlayerCount = (existingPlayers || []).filter((p: any) => !p.is_spectator).length;
+      if (activePlayerCount >= 4) {
         toast({ title: "Room full", description: "This room already has 4 players.", variant: "destructive" });
         return;
       }
@@ -95,7 +123,7 @@ const Index = () => {
         navigate(`/room/${roomCode.toUpperCase()}`);
         return;
       }
-      const colorIndex = existingPlayers?.length || 0;
+      const colorIndex = (existingPlayers?.length || 0) % PLAYER_COLORS.length;
       const { error: playerError } = await supabase
         .from('players')
         .insert({ room_id: room.id, player_name: playerName.trim(), player_color: PLAYER_COLORS[colorIndex].hsl, is_host: false, session_id: sessionId });
@@ -287,7 +315,7 @@ const Index = () => {
                   </div>
                 </div>
                 <Button
-                  onClick={createRoom}
+                  onClick={handleCreateClick}
                   disabled={isCreating || !sessionId || sessionLoading}
                   className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground font-display text-lg h-12"
                 >
@@ -457,6 +485,48 @@ const Index = () => {
           <p>2-4 players • Real-time multiplayer • Tournaments • No sign-up required</p>
         </motion.div>
       </div>
+
+      {/* Role choice dialog */}
+      <Dialog open={showRoleDialog} onOpenChange={setShowRoleDialog}>
+        <DialogContent className="bg-card border-secondary">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl text-secondary">
+              CHỌN VAI TRÒ
+            </DialogTitle>
+            <DialogDescription>
+              Bạn muốn vừa chơi vừa quản lý phòng, hay chỉ làm quản trò?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 mt-2">
+            <button
+              onClick={() => createRoom(false)}
+              disabled={isCreating}
+              className="group flex items-start gap-4 p-4 rounded-lg border-2 border-primary/40 hover:border-primary hover:bg-primary/10 transition-all text-left disabled:opacity-50"
+            >
+              <Gamepad2 className="w-8 h-8 text-primary shrink-0 mt-1" />
+              <div className="flex-1">
+                <div className="font-display text-lg text-primary">TÔI SẼ CHƠI</div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Vừa chơi vừa quản lý phòng (chế độ thường).
+                </p>
+              </div>
+            </button>
+            <button
+              onClick={() => createRoom(true)}
+              disabled={isCreating}
+              className="group flex items-start gap-4 p-4 rounded-lg border-2 border-accent/40 hover:border-accent hover:bg-accent/10 transition-all text-left disabled:opacity-50"
+            >
+              <Eye className="w-8 h-8 text-accent shrink-0 mt-1" />
+              <div className="flex-1">
+                <div className="font-display text-lg text-accent">CHỈ LÀM QUẢN TRÒ</div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Không chơi, có quyền điều khiển + chia sẻ link cho khán giả xem.
+                </p>
+              </div>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
