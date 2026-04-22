@@ -142,6 +142,7 @@ export type Database = {
           created_at: string
           id: string
           is_host: boolean
+          is_spectator: boolean
           player_color: string
           player_name: string
           room_id: string
@@ -152,6 +153,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_host?: boolean
+          is_spectator?: boolean
           player_color: string
           player_name: string
           room_id: string
@@ -162,6 +164,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_host?: boolean
+          is_spectator?: boolean
           player_color?: string
           player_name?: string
           room_id?: string
