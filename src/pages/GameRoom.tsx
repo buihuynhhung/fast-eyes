@@ -560,10 +560,11 @@ export default function GameRoomPage() {
             Leave
           </Button>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 flex-wrap">
             <div
               className="flex items-center gap-2 px-4 py-2 rounded-lg neon-border cursor-pointer hover:bg-primary/10"
               onClick={copyRoomCode}
+              title="Copy room code"
             >
               <span className="font-display text-xl text-primary tracking-widest">
                 {roomCode}
@@ -571,10 +572,28 @@ export default function GameRoomPage() {
               <Copy className="w-4 h-4 text-primary" />
             </div>
 
+            {isSpectator && (
+              <Button
+                onClick={copySpectatorLink}
+                size="sm"
+                variant="outline"
+                className="border-accent text-accent hover:bg-accent/10"
+              >
+                <Share2 className="w-4 h-4 mr-2" />
+                Spectator link
+              </Button>
+            )}
+
             <div className="flex items-center gap-2 text-muted-foreground">
               <Users className="w-4 h-4" />
-              <span>{players.length}/4</span>
+              <span>{activePlayerCount}/4</span>
             </div>
+
+            {isSpectator && (
+              <span className="flex items-center gap-1 px-2 py-1 rounded text-xs font-display bg-accent/20 text-accent border border-accent/40">
+                <Eye className="w-3 h-3" /> QUẢN TRÒ
+              </span>
+            )}
           </div>
 
           {isPlaying && room.started_at && (
@@ -658,12 +677,18 @@ export default function GameRoomPage() {
                   {isHost && (
                     <Button
                       onClick={startGame}
-                      disabled={players.length < 2}
+                      disabled={activePlayerCount < 2}
                       className="bg-primary hover:bg-primary/80 text-primary-foreground font-display text-xl px-8 py-6"
                     >
                       <Play className="w-6 h-6 mr-2" />
                       START GAME
                     </Button>
+                  )}
+
+                  {isHost && activePlayerCount < 2 && (
+                    <p className="text-muted-foreground text-sm">
+                      Cần ít nhất 2 đấu thủ để bắt đầu.
+                    </p>
                   )}
 
                   {!isHost && (
@@ -690,6 +715,7 @@ export default function GameRoomPage() {
                     claimedNumbers={claimedNumbers}
                     onNumberClick={handleNumberClick}
                     disabled={room.status !== 'playing'}
+                    readOnly={isSpectator}
                   />
                 </div>
               </div>
