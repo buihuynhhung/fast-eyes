@@ -1,40 +1,76 @@
 
 
-# Tự động thu nhỏ grid để vừa màn hình
+# Quản trò + Khán giả cho Quick Play (cập nhật)
 
-## Vấn đề
-Khi grid size lớn (vd 81-100 số), canvas có chiều rộng cố định `min(rect.width, 800)` và luôn vuông (aspect-ratio 1:1). Nếu màn hình thấp hơn rộng (laptop ngang), canvas bị tràn xuống dưới → phải scroll.
+## Tổng quan
+Khi người dùng bấm **"Tạo phòng"** ở trang chủ, hiện dialog hỏi:
+- **"Tôi sẽ chơi"** → host vừa chơi vừa quản lý (giữ nguyên logic cũ)
+- **"Chỉ làm quản trò"** → host không chơi, có quyền điều khiển + chia sẻ link khán giả
 
-## Giải pháp
-Thay đổi cách tính kích thước canvas trong `CanvasNumberGrid.tsx`: tính toán dựa trên **không gian khả dụng (cả width và height)** của viewport, không chỉ width của container.
+Thêm route `/watch/:roomCode` cho khán giả xem read-only.
 
-### Thay đổi chính trong `src/components/game/CanvasNumberGrid.tsx`
+## Luồng người dùng
 
-1. **Tính kích thước available height**:
-   - Đo vị trí top của container so với viewport
-   - Available height = `window.innerHeight - container.top - paddingBottom`
-   
-2. **Canvas size = min(available width, available height, 800)**:
-   - Đảm bảo canvas vuông và vừa hoàn toàn trong khung nhìn
-   - Không bao giờ tràn ra ngoài viewport
+```text
+Trang chủ → "Tạo phòng" → Dialog chọn vai trò:
+  ├─ "Tôi sẽ chơi"      → /room/CODE (host = player)
+  └─ "Chỉ làm quản trò" → /room/CODE (host = spectator)
+                          • Không click số được
+                          • 2 nút: Copy mã / Copy link khán giả
+                          • Start/Reset
 
-3. **Cell size tự động co giãn**:
-   - `cellSize = size * 0.055` đã tỉ lệ theo canvas size, nên khi canvas nhỏ lại thì số cũng nhỏ theo tự nhiên
-   - Với grid lớn (100 số), tăng tỉ lệ cell một chút (vd 0.05) để vẫn dễ click nhưng không chồng chéo
+Đấu thủ: nhập mã → /room/CODE → chơi bình thường
+Khán giả: mở /watch/CODE → xem grid + điểm + chat (read-only)
+```
 
-4. **Layout container**:
-   - Bỏ `max-w-4xl` cố định trên motion.div, dùng flex center để canvas tự căn giữa
-   - GameRoom layout cần đảm bảo phần grid có flex-1 để chiếm không gian còn lại
+## Thay đổi
 
-### File ảnh hưởng
+### 1. Database (migration)
+- Thêm cột `is_spectator BOOLEAN DEFAULT false` vào bảng `players`.
+- Cập nhật RPC `start_game`: đếm chỉ players có `is_spectator = false` (cần ≥2).
+- Cập nhật RPC `claim_number`: từ chối nếu `is_spectator = true`.
+
+### 2. Trang chủ (`src/pages/Index.tsx`)
+- Thêm dialog chọn vai trò khi bấm "Tạo phòng".
+- Truyền cờ `asSpectator: boolean` vào `createRoom`.
+- Khi insert host vào `players`: set `is_spectator = asSpectator`.
+- Check số đấu thủ tối đa (4): chỉ đếm `is_spectator = false`.
+
+### 3. Phòng chơi (`src/pages/GameRoom.tsx`)
+- Nếu `currentPlayer.is_spectator === true`:
+  - Truyền `readOnly` vào `CanvasNumberGrid` (không click được).
+  - Hiện 2 nút: "Copy mã phòng" và "Copy link khán giả" (`${origin}/watch/${roomCode}`).
+- Lọc đấu thủ trong UI (PlayerList): bỏ qua spectator hoặc đánh dấu badge "QUẢN TRÒ".
+- Check "phòng đầy" khi join: chỉ đếm non-spectator.
+
+### 4. Trang khán giả mới (`src/pages/SpectatorView.tsx`)
+- Route `/watch/:roomCode` trong `App.tsx`.
+- Fetch + subscribe realtime: room, players, claimed_numbers, chat_messages.
+- Hiển thị: grid (read-only), danh sách đấu thủ + điểm, chat (chỉ xem), timer, header "👁️ ĐANG XEM".
+- Không insert gì vào DB.
+
+### 5. Components
+- `CanvasNumberGrid.tsx`: thêm prop `readOnly?: boolean` → vô hiệu click + cursor default.
+- `ChatBox.tsx`: thêm prop `readOnly?: boolean` → ẩn input + nút send.
+- `PlayerList.tsx`: lọc/đánh dấu spectator với badge "QUẢN TRÒ".
+- `src/types/game.ts`: thêm `is_spectator: boolean` vào `Player`.
+
+## Files ảnh hưởng
+
 | File | Hành động |
 |------|-----------|
-| `src/components/game/CanvasNumberGrid.tsx` | Sửa logic tính `size` dựa trên cả width và height viewport |
-| `src/pages/GameRoom.tsx` | Kiểm tra & điều chỉnh layout để grid container có chiều cao linh hoạt (nếu cần) |
+| Migration SQL | Thêm cột `is_spectator`, sửa 2 RPC |
+| `src/pages/Index.tsx` | Dialog chọn vai trò + truyền cờ |
+| `src/pages/GameRoom.tsx` | UI quản trò (2 nút copy, disable click) |
+| `src/pages/SpectatorView.tsx` | **Mới** — trang khán giả |
+| `src/App.tsx` | Route `/watch/:roomCode` |
+| `src/components/game/CanvasNumberGrid.tsx` | Prop `readOnly` |
+| `src/components/game/ChatBox.tsx` | Prop `readOnly` |
+| `src/components/game/PlayerList.tsx` | Badge "QUẢN TRÒ" |
+| `src/types/game.ts` | Thêm `is_spectator` |
 
-### Kết quả
-- Grid luôn vừa 1 màn hình, không cần scroll
-- Trên màn hình nhỏ/grid lớn: số tự động nhỏ lại
-- Trên màn hình lớn/grid nhỏ: vẫn giữ kích thước thoải mái (cap 800px)
-- Resize window → canvas tự cập nhật
+## Kết quả
+- Người chơi tự do: chọn "Tôi sẽ chơi" → trải nghiệm như cũ.
+- Tổ chức trận đấu: chọn "Chỉ làm quản trò" → có màn hình điều khiển + link khán giả.
+- Khán giả: xem qua link `/watch/CODE` không can thiệp được.
 
