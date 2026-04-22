@@ -315,7 +315,7 @@ const Index = () => {
                   </div>
                 </div>
                 <Button
-                  onClick={createRoom}
+                  onClick={handleCreateClick}
                   disabled={isCreating || !sessionId || sessionLoading}
                   className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground font-display text-lg h-12"
                 >
