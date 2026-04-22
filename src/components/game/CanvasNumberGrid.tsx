@@ -9,6 +9,7 @@ interface CanvasNumberGridProps {
   claimedNumbers: Map<number, { playerId: string; playerColor: string }>;
   onNumberClick: (number: number) => void;
   disabled: boolean;
+  readOnly?: boolean;
 }
 
 interface NumberPosition {
@@ -24,7 +25,8 @@ export function CanvasNumberGrid({
   currentTarget,
   claimedNumbers,
   onNumberClick,
-  disabled
+  disabled,
+  readOnly = false,
 }: CanvasNumberGridProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -190,7 +192,7 @@ export function CanvasNumberGrid({
 
   // Handle click
   const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (disabled) return;
+    if (disabled || readOnly) return;
     
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -214,11 +216,11 @@ export function CanvasNumberGrid({
         return;
       }
     }
-  }, [disabled, claimedNumbers, onNumberClick, getCellPercent]);
+  }, [disabled, readOnly, claimedNumbers, onNumberClick, getCellPercent]);
 
   // Update cursor based on hover
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (disabled) {
+    if (disabled || readOnly) {
       e.currentTarget.style.cursor = 'default';
       return;
     }
@@ -246,7 +248,7 @@ export function CanvasNumberGrid({
     }
     
     e.currentTarget.style.cursor = 'default';
-  }, [disabled, claimedNumbers, getCellPercent]);
+  }, [disabled, readOnly, claimedNumbers, getCellPercent]);
 
   return (
     <motion.div

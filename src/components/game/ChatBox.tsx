@@ -11,9 +11,10 @@ interface ChatBoxProps {
   players: Player[];
   onSendMessage: (message: string) => void;
   currentPlayerName: string;
+  readOnly?: boolean;
 }
 
-export function ChatBox({ messages, players, onSendMessage, currentPlayerName }: ChatBoxProps) {
+export function ChatBox({ messages, players, onSendMessage, currentPlayerName, readOnly = false }: ChatBoxProps) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -73,30 +74,36 @@ export function ChatBox({ messages, players, onSendMessage, currentPlayerName }:
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSubmit} className="p-3 border-t border-accent/30">
-        <div className="flex flex-col gap-1">
-          <div className="flex gap-2">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value.slice(0, 500))}
-              placeholder="Type a message..."
-              maxLength={500}
-              className="flex-1 bg-muted border-accent/30 focus:border-accent"
-            />
-            <Button
-              type="submit"
-              size="icon"
-              className="bg-accent hover:bg-accent/80"
-              disabled={!input.trim()}
-            >
-              <Send className="w-4 h-4" />
-            </Button>
-          </div>
-          <span className="text-xs text-muted-foreground text-right">
-            {input.length}/500
-          </span>
+      {readOnly ? (
+        <div className="p-3 border-t border-accent/30 text-xs text-center text-muted-foreground italic">
+          👁️ Spectator mode — chat is read-only
         </div>
-      </form>
+      ) : (
+        <form onSubmit={handleSubmit} className="p-3 border-t border-accent/30">
+          <div className="flex flex-col gap-1">
+            <div className="flex gap-2">
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value.slice(0, 500))}
+                placeholder="Type a message..."
+                maxLength={500}
+                className="flex-1 bg-muted border-accent/30 focus:border-accent"
+              />
+              <Button
+                type="submit"
+                size="icon"
+                className="bg-accent hover:bg-accent/80"
+                disabled={!input.trim()}
+              >
+                <Send className="w-4 h-4" />
+              </Button>
+            </div>
+            <span className="text-xs text-muted-foreground text-right">
+              {input.length}/500
+            </span>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

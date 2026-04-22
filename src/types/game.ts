@@ -18,6 +18,7 @@ export interface Player {
   player_color: string;
   score: number;
   is_host: boolean;
+  is_spectator: boolean;
   session_id: string;
   created_at: string;
 }
