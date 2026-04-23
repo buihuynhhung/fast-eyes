@@ -530,7 +530,36 @@ export default function GameRoomPage() {
     }
   };
 
-  const handleBackToLobby = () => {
+  const handleNextMatch = async () => {
+    if (!room || !sessionId) return;
+    try {
+      const { data, error } = await (supabase.rpc as any)('next_match', {
+        p_room_id: room.id,
+        p_session_id: sessionId,
+      });
+      if (error) {
+        console.error('Error advancing to next match:', error);
+        toast({ title: 'Error', description: 'Không thể chuyển ván.', variant: 'destructive' });
+        return;
+      }
+      const result = data as { success: boolean; error?: string };
+      if (!result.success) {
+        toast({ title: 'Không thể chuyển ván', description: result.error || 'Unknown error', variant: 'destructive' });
+        return;
+      }
+      setShowVictory(false);
+      setClaimedNumbers(new Map());
+      setLocalTarget(null);
+      await supabase.from('chat_messages').insert({
+        room_id: room.id,
+        player_name: 'System',
+        message: `Ván ${(room.current_match || 1) + 1} bắt đầu!`,
+        is_system: true,
+      });
+    } catch (error) {
+      console.error('Error advancing to next match:', error);
+    }
+  };
     if (tournamentId) {
       // Find tournament code from tournament_matches
       (supabase as any).from('tournaments').select('tournament_code').eq('id', tournamentId).single()
