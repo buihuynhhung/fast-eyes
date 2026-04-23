@@ -24,6 +24,7 @@ const Index = () => {
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [maxNumbers, setMaxNumbers] = useState(25);
+  const [matchFormat, setMatchFormat] = useState<1 | 3 | 5>(1);
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [showRoleDialog, setShowRoleDialog] = useState(false);
@@ -59,7 +60,13 @@ const Index = () => {
       const gridSeed = `${newRoomCode}_${Date.now()}`;
       const { data: room, error: roomError } = await supabase
         .from('game_rooms')
-        .insert({ room_code: newRoomCode, host_id: sessionId, max_numbers: maxNumbers, grid_seed: gridSeed })
+        .insert({
+          room_code: newRoomCode,
+          host_id: sessionId,
+          max_numbers: maxNumbers,
+          grid_seed: gridSeed,
+          match_format: matchFormat,
+        } as any)
         .select()
         .single();
       if (roomError) throw roomError;
