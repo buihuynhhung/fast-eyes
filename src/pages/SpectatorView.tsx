@@ -196,6 +196,23 @@ export default function SpectatorView() {
           setMessages((prev) => [...prev, payload.new as ChatMessage]);
         },
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'match_results',
+          filter: `room_id=eq.${room.id}`,
+        },
+        async () => {
+          const { data } = await (supabase as any)
+            .from('match_results')
+            .select('*')
+            .eq('room_id', room.id)
+            .order('match_number', { ascending: true });
+          if (data) setMatchResults(data as MatchResult[]);
+        },
+      )
       .subscribe();
 
     return () => {
@@ -226,6 +243,13 @@ export default function SpectatorView() {
   const isPlaying = room.status === 'playing';
   const activePlayerCount = players.filter((p) => !p.is_spectator).length;
   const effectiveTarget = room.current_target ?? 1;
+  const isBoSeries = (room.match_format || 1) > 1;
+  const seriesWins = new Map<string, number>();
+  matchResults.forEach((r) => {
+    if (r.winner_player_id) {
+      seriesWins.set(r.winner_player_id, (seriesWins.get(r.winner_player_id) || 0) + 1);
+    }
+  });
 
   return (
     <div className="min-h-screen bg-background cyber-grid relative">
