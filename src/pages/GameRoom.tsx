@@ -105,6 +105,14 @@ export default function GameRoomPage() {
           setMessages(messagesData as ChatMessage[]);
         }
 
+        // Fetch match results (for BO series)
+        const { data: resultsData } = await (supabase as any)
+          .from('match_results')
+          .select('*')
+          .eq('room_id', roomData.id)
+          .order('match_number', { ascending: true });
+        if (resultsData) setMatchResults(resultsData as MatchResult[]);
+
         // Check if game already finished
         if (roomData.status === 'finished' && roomData.started_at && roomData.finished_at) {
           const start = new Date(roomData.started_at).getTime();
