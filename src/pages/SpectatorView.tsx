@@ -403,6 +403,11 @@ export default function SpectatorView() {
           finalTime={finalTime}
           onPlayAgain={() => {}}
           onBackToLobby={() => navigate('/')}
+          matchResults={matchResults}
+          seriesFinished={room.series_status === 'finished'}
+          currentMatch={room.current_match || 1}
+          matchFormat={room.match_format || 1}
+          isHost={false}
         />
       )}
     </div>
