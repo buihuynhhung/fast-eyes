@@ -16,7 +16,7 @@ import { PlayerList } from '@/components/game/PlayerList';
 import { ChatBox } from '@/components/game/ChatBox';
 import { VictoryOverlay } from '@/components/game/VictoryOverlay';
 import { TargetIndicator } from '@/components/game/TargetIndicator';
-import { GameRoom, Player, ChatMessage } from '@/types/game';
+import { GameRoom, Player, ChatMessage, MatchResult } from '@/types/game';
 
 export default function GameRoomPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -33,6 +33,7 @@ export default function GameRoomPage() {
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [claimedNumbers, setClaimedNumbers] = useState<Map<number, { playerId: string; playerColor: string }>>(new Map());
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showVictory, setShowVictory] = useState(false);
   const [finalTime, setFinalTime] = useState(0);
