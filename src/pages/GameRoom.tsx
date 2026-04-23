@@ -598,6 +598,15 @@ export default function GameRoomPage() {
   const isWaiting = room.status === 'waiting';
   const isPlaying = room.status === 'playing';
   const activePlayerCount = players.filter(p => !p.is_spectator).length;
+  const isBoSeries = (room.match_format || 1) > 1;
+
+  // Compute series wins per player (for header score display)
+  const seriesWins = new Map<string, number>();
+  matchResults.forEach((r) => {
+    if (r.winner_player_id) {
+      seriesWins.set(r.winner_player_id, (seriesWins.get(r.winner_player_id) || 0) + 1);
+    }
+  });
 
   return (
     <div className="min-h-screen bg-background cyber-grid relative">
