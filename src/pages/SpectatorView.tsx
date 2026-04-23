@@ -291,6 +291,30 @@ export default function SpectatorView() {
               <Users className="w-4 h-4" />
               <span>{activePlayerCount}/4</span>
             </div>
+
+            {isBoSeries && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-secondary/40 bg-secondary/10">
+                <span className="font-display text-xs text-secondary">
+                  VÁN {room.current_match || 1}/{room.match_format}
+                </span>
+                <span className="text-muted-foreground text-xs">·</span>
+                <div className="flex items-center gap-2">
+                  {players
+                    .filter((p) => !p.is_spectator)
+                    .map((p, idx, arr) => (
+                      <span key={p.id} className="text-xs flex items-center gap-1">
+                        <span style={{ color: p.player_color }} className="font-semibold">
+                          {p.player_name}
+                        </span>
+                        <span style={{ color: p.player_color }} className="font-display">
+                          {seriesWins.get(p.id) || 0}
+                        </span>
+                        {idx < arr.length - 1 && <span className="text-muted-foreground">-</span>}
+                      </span>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {isPlaying && room.started_at && (
