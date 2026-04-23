@@ -11,7 +11,7 @@ import { PlayerList } from '@/components/game/PlayerList';
 import { ChatBox } from '@/components/game/ChatBox';
 import { TargetIndicator } from '@/components/game/TargetIndicator';
 import { VictoryOverlay } from '@/components/game/VictoryOverlay';
-import { GameRoom, Player, ChatMessage } from '@/types/game';
+import { GameRoom, Player, ChatMessage, MatchResult } from '@/types/game';
 
 export default function SpectatorView() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -24,6 +24,7 @@ export default function SpectatorView() {
     Map<number, { playerId: string; playerColor: string }>
   >(new Map());
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showVictory, setShowVictory] = useState(false);
   const [finalTime, setFinalTime] = useState(0);
@@ -79,6 +80,13 @@ export default function SpectatorView() {
           .eq('room_id', roomData.id)
           .order('created_at', { ascending: true });
         if (messagesData) setMessages(messagesData as ChatMessage[]);
+
+        const { data: resultsData } = await (supabase as any)
+          .from('match_results')
+          .select('*')
+          .eq('room_id', roomData.id)
+          .order('match_number', { ascending: true });
+        if (resultsData) setMatchResults(resultsData as MatchResult[]);
 
         if (
           roomData.status === 'finished' &&
