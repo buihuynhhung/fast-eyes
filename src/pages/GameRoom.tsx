@@ -802,10 +802,17 @@ export default function GameRoomPage() {
       {/* Victory overlay */}
       {showVictory && (
         <VictoryOverlay
-          players={players}
+          players={players.filter((p) => !p.is_spectator)}
           finalTime={finalTime}
           onPlayAgain={handlePlayAgain}
           onBackToLobby={handleBackToLobby}
+          matchResults={matchResults}
+          seriesFinished={room.series_status === 'finished'}
+          currentMatch={room.current_match || 1}
+          matchFormat={room.match_format || 1}
+          isHost={!!isHost}
+          onNextMatch={handleNextMatch}
+          onNewSeries={handlePlayAgain}
         />
       )}
     </div>
