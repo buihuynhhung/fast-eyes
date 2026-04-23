@@ -145,13 +145,13 @@ export default function GameRoomPage() {
       }, (payload) => {
         const newRoom = payload.new as GameRoom;
         setRoom(newRoom);
-        
+
         if (newRoom.status === 'finished' && newRoom.started_at && newRoom.finished_at) {
           const start = new Date(newRoom.started_at).getTime();
           const end = new Date(newRoom.finished_at).getTime();
           setFinalTime(end - start);
           setShowVictory(true);
-          
+
           // Advance tournament if this is a tournament match
           if (tournamentId && room?.id) {
             (supabase.rpc as any)('advance_tournament', { p_room_id: room.id })
@@ -159,6 +159,13 @@ export default function GameRoomPage() {
                 if (error) console.error('Error advancing tournament:', error);
               });
           }
+        }
+
+        // When host advances to next match, room flips back to 'waiting'
+        if (newRoom.status === 'waiting') {
+          setShowVictory(false);
+          setClaimedNumbers(new Map());
+          setLocalTarget(null);
         }
       })
       .on('postgres_changes', {
@@ -189,7 +196,7 @@ export default function GameRoomPage() {
           .select('player_color')
           .eq('id', claimed.player_id)
           .single();
-        
+
         setClaimedNumbers(prev => {
           const newMap = new Map(prev);
           newMap.set(claimed.number, {
@@ -206,6 +213,19 @@ export default function GameRoomPage() {
         filter: `room_id=eq.${room.id}`,
       }, (payload) => {
         setMessages(prev => [...prev, payload.new as ChatMessage]);
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'match_results',
+        filter: `room_id=eq.${room.id}`,
+      }, async () => {
+        const { data } = await (supabase as any)
+          .from('match_results')
+          .select('*')
+          .eq('room_id', room.id)
+          .order('match_number', { ascending: true });
+        if (data) setMatchResults(data as MatchResult[]);
       })
       .subscribe();
 
