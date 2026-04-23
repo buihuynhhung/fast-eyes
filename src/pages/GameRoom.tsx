@@ -16,7 +16,7 @@ import { PlayerList } from '@/components/game/PlayerList';
 import { ChatBox } from '@/components/game/ChatBox';
 import { VictoryOverlay } from '@/components/game/VictoryOverlay';
 import { TargetIndicator } from '@/components/game/TargetIndicator';
-import { GameRoom, Player, ChatMessage } from '@/types/game';
+import { GameRoom, Player, ChatMessage, MatchResult } from '@/types/game';
 
 export default function GameRoomPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -33,6 +33,7 @@ export default function GameRoomPage() {
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [claimedNumbers, setClaimedNumbers] = useState<Map<number, { playerId: string; playerColor: string }>>(new Map());
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showVictory, setShowVictory] = useState(false);
   const [finalTime, setFinalTime] = useState(0);
@@ -104,6 +105,14 @@ export default function GameRoomPage() {
           setMessages(messagesData as ChatMessage[]);
         }
 
+        // Fetch match results (for BO series)
+        const { data: resultsData } = await (supabase as any)
+          .from('match_results')
+          .select('*')
+          .eq('room_id', roomData.id)
+          .order('match_number', { ascending: true });
+        if (resultsData) setMatchResults(resultsData as MatchResult[]);
+
         // Check if game already finished
         if (roomData.status === 'finished' && roomData.started_at && roomData.finished_at) {
           const start = new Date(roomData.started_at).getTime();
@@ -136,13 +145,13 @@ export default function GameRoomPage() {
       }, (payload) => {
         const newRoom = payload.new as GameRoom;
         setRoom(newRoom);
-        
+
         if (newRoom.status === 'finished' && newRoom.started_at && newRoom.finished_at) {
           const start = new Date(newRoom.started_at).getTime();
           const end = new Date(newRoom.finished_at).getTime();
           setFinalTime(end - start);
           setShowVictory(true);
-          
+
           // Advance tournament if this is a tournament match
           if (tournamentId && room?.id) {
             (supabase.rpc as any)('advance_tournament', { p_room_id: room.id })
@@ -150,6 +159,13 @@ export default function GameRoomPage() {
                 if (error) console.error('Error advancing tournament:', error);
               });
           }
+        }
+
+        // When host advances to next match, room flips back to 'waiting'
+        if (newRoom.status === 'waiting') {
+          setShowVictory(false);
+          setClaimedNumbers(new Map());
+          setLocalTarget(null);
         }
       })
       .on('postgres_changes', {
@@ -180,7 +196,7 @@ export default function GameRoomPage() {
           .select('player_color')
           .eq('id', claimed.player_id)
           .single();
-        
+
         setClaimedNumbers(prev => {
           const newMap = new Map(prev);
           newMap.set(claimed.number, {
@@ -197,6 +213,19 @@ export default function GameRoomPage() {
         filter: `room_id=eq.${room.id}`,
       }, (payload) => {
         setMessages(prev => [...prev, payload.new as ChatMessage]);
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'match_results',
+        filter: `room_id=eq.${room.id}`,
+      }, async () => {
+        const { data } = await (supabase as any)
+          .from('match_results')
+          .select('*')
+          .eq('room_id', room.id)
+          .order('match_number', { ascending: true });
+        if (data) setMatchResults(data as MatchResult[]);
       })
       .subscribe();
 
@@ -501,6 +530,37 @@ export default function GameRoomPage() {
     }
   };
 
+  const handleNextMatch = async () => {
+    if (!room || !sessionId) return;
+    try {
+      const { data, error } = await (supabase.rpc as any)('next_match', {
+        p_room_id: room.id,
+        p_session_id: sessionId,
+      });
+      if (error) {
+        console.error('Error advancing to next match:', error);
+        toast({ title: 'Error', description: 'Không thể chuyển ván.', variant: 'destructive' });
+        return;
+      }
+      const result = data as { success: boolean; error?: string };
+      if (!result.success) {
+        toast({ title: 'Không thể chuyển ván', description: result.error || 'Unknown error', variant: 'destructive' });
+        return;
+      }
+      setShowVictory(false);
+      setClaimedNumbers(new Map());
+      setLocalTarget(null);
+      await supabase.from('chat_messages').insert({
+        room_id: room.id,
+        player_name: 'System',
+        message: `Ván ${(room.current_match || 1) + 1} bắt đầu!`,
+        is_system: true,
+      });
+    } catch (error) {
+      console.error('Error advancing to next match:', error);
+    }
+  };
+
   const handleBackToLobby = () => {
     if (tournamentId) {
       // Find tournament code from tournament_matches
@@ -538,6 +598,15 @@ export default function GameRoomPage() {
   const isWaiting = room.status === 'waiting';
   const isPlaying = room.status === 'playing';
   const activePlayerCount = players.filter(p => !p.is_spectator).length;
+  const isBoSeries = (room.match_format || 1) > 1;
+
+  // Compute series wins per player (for header score display)
+  const seriesWins = new Map<string, number>();
+  matchResults.forEach((r) => {
+    if (r.winner_player_id) {
+      seriesWins.set(r.winner_player_id, (seriesWins.get(r.winner_player_id) || 0) + 1);
+    }
+  });
 
   return (
     <div className="min-h-screen bg-background cyber-grid relative">
@@ -593,6 +662,30 @@ export default function GameRoomPage() {
               <span className="flex items-center gap-1 px-2 py-1 rounded text-xs font-display bg-accent/20 text-accent border border-accent/40">
                 <Eye className="w-3 h-3" /> QUẢN TRÒ
               </span>
+            )}
+
+            {isBoSeries && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-secondary/40 bg-secondary/10">
+                <span className="font-display text-xs text-secondary">
+                  VÁN {room.current_match || 1}/{room.match_format}
+                </span>
+                <span className="text-muted-foreground text-xs">·</span>
+                <div className="flex items-center gap-2">
+                  {players
+                    .filter((p) => !p.is_spectator)
+                    .map((p, idx, arr) => (
+                      <span key={p.id} className="text-xs flex items-center gap-1">
+                        <span style={{ color: p.player_color }} className="font-semibold">
+                          {p.player_name}
+                        </span>
+                        <span style={{ color: p.player_color }} className="font-display">
+                          {seriesWins.get(p.id) || 0}
+                        </span>
+                        {idx < arr.length - 1 && <span className="text-muted-foreground">-</span>}
+                      </span>
+                    ))}
+                </div>
+              </div>
             )}
           </div>
 
@@ -742,10 +835,17 @@ export default function GameRoomPage() {
       {/* Victory overlay */}
       {showVictory && (
         <VictoryOverlay
-          players={players}
+          players={players.filter((p) => !p.is_spectator)}
           finalTime={finalTime}
           onPlayAgain={handlePlayAgain}
           onBackToLobby={handleBackToLobby}
+          matchResults={matchResults}
+          seriesFinished={room.series_status === 'finished'}
+          currentMatch={room.current_match || 1}
+          matchFormat={room.match_format || 1}
+          isHost={!!isHost}
+          onNextMatch={handleNextMatch}
+          onNewSeries={handlePlayAgain}
         />
       )}
     </div>

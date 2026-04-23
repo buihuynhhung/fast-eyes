@@ -9,6 +9,21 @@ export interface GameRoom {
   started_at: string | null;
   finished_at: string | null;
   created_at: string;
+  match_format: number;
+  current_match: number;
+  series_status: 'in_progress' | 'finished';
+}
+
+export interface MatchResult {
+  id: string;
+  room_id: string;
+  match_number: number;
+  winner_player_id: string | null;
+  winner_name: string | null;
+  winner_color: string | null;
+  winner_score: number;
+  duration_ms: number;
+  created_at: string;
 }
 
 export interface Player {

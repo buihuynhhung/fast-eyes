@@ -24,6 +24,7 @@ const Index = () => {
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [maxNumbers, setMaxNumbers] = useState(25);
+  const [matchFormat, setMatchFormat] = useState<1 | 3 | 5>(1);
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [showRoleDialog, setShowRoleDialog] = useState(false);
@@ -59,7 +60,13 @@ const Index = () => {
       const gridSeed = `${newRoomCode}_${Date.now()}`;
       const { data: room, error: roomError } = await supabase
         .from('game_rooms')
-        .insert({ room_code: newRoomCode, host_id: sessionId, max_numbers: maxNumbers, grid_seed: gridSeed })
+        .insert({
+          room_code: newRoomCode,
+          host_id: sessionId,
+          max_numbers: maxNumbers,
+          grid_seed: gridSeed,
+          match_format: matchFormat,
+        } as any)
         .select()
         .single();
       if (roomError) throw roomError;
@@ -313,6 +320,33 @@ const Index = () => {
                     <span>9</span>
                     <span>100</span>
                   </div>
+                </div>
+
+                <div className="mb-4">
+                  <Label className="text-muted-foreground mb-2 block">
+                    Định dạng loạt đấu
+                  </Label>
+                  <div className="flex gap-2">
+                    {([1, 3, 5] as const).map((bo) => (
+                      <button
+                        key={bo}
+                        type="button"
+                        onClick={() => setMatchFormat(bo)}
+                        className={`flex-1 py-2 px-3 rounded-lg font-display text-sm border transition-colors ${
+                          matchFormat === bo
+                            ? 'border-secondary bg-secondary/20 text-secondary'
+                            : 'border-border text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        BO{bo}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {matchFormat === 1
+                      ? 'Chơi 1 ván duy nhất.'
+                      : `Best of ${matchFormat} — ai thắng ${Math.floor(matchFormat / 2) + 1} ván trước là vô địch.`}
+                  </p>
                 </div>
                 <Button
                   onClick={handleCreateClick}

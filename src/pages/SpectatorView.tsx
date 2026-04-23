@@ -11,7 +11,7 @@ import { PlayerList } from '@/components/game/PlayerList';
 import { ChatBox } from '@/components/game/ChatBox';
 import { TargetIndicator } from '@/components/game/TargetIndicator';
 import { VictoryOverlay } from '@/components/game/VictoryOverlay';
-import { GameRoom, Player, ChatMessage } from '@/types/game';
+import { GameRoom, Player, ChatMessage, MatchResult } from '@/types/game';
 
 export default function SpectatorView() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -24,6 +24,7 @@ export default function SpectatorView() {
     Map<number, { playerId: string; playerColor: string }>
   >(new Map());
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showVictory, setShowVictory] = useState(false);
   const [finalTime, setFinalTime] = useState(0);
@@ -79,6 +80,13 @@ export default function SpectatorView() {
           .eq('room_id', roomData.id)
           .order('created_at', { ascending: true });
         if (messagesData) setMessages(messagesData as ChatMessage[]);
+
+        const { data: resultsData } = await (supabase as any)
+          .from('match_results')
+          .select('*')
+          .eq('room_id', roomData.id)
+          .order('match_number', { ascending: true });
+        if (resultsData) setMatchResults(resultsData as MatchResult[]);
 
         if (
           roomData.status === 'finished' &&
@@ -188,6 +196,23 @@ export default function SpectatorView() {
           setMessages((prev) => [...prev, payload.new as ChatMessage]);
         },
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'match_results',
+          filter: `room_id=eq.${room.id}`,
+        },
+        async () => {
+          const { data } = await (supabase as any)
+            .from('match_results')
+            .select('*')
+            .eq('room_id', room.id)
+            .order('match_number', { ascending: true });
+          if (data) setMatchResults(data as MatchResult[]);
+        },
+      )
       .subscribe();
 
     return () => {
@@ -218,6 +243,13 @@ export default function SpectatorView() {
   const isPlaying = room.status === 'playing';
   const activePlayerCount = players.filter((p) => !p.is_spectator).length;
   const effectiveTarget = room.current_target ?? 1;
+  const isBoSeries = (room.match_format || 1) > 1;
+  const seriesWins = new Map<string, number>();
+  matchResults.forEach((r) => {
+    if (r.winner_player_id) {
+      seriesWins.set(r.winner_player_id, (seriesWins.get(r.winner_player_id) || 0) + 1);
+    }
+  });
 
   return (
     <div className="min-h-screen bg-background cyber-grid relative">
@@ -259,6 +291,30 @@ export default function SpectatorView() {
               <Users className="w-4 h-4" />
               <span>{activePlayerCount}/4</span>
             </div>
+
+            {isBoSeries && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-secondary/40 bg-secondary/10">
+                <span className="font-display text-xs text-secondary">
+                  VÁN {room.current_match || 1}/{room.match_format}
+                </span>
+                <span className="text-muted-foreground text-xs">·</span>
+                <div className="flex items-center gap-2">
+                  {players
+                    .filter((p) => !p.is_spectator)
+                    .map((p, idx, arr) => (
+                      <span key={p.id} className="text-xs flex items-center gap-1">
+                        <span style={{ color: p.player_color }} className="font-semibold">
+                          {p.player_name}
+                        </span>
+                        <span style={{ color: p.player_color }} className="font-display">
+                          {seriesWins.get(p.id) || 0}
+                        </span>
+                        {idx < arr.length - 1 && <span className="text-muted-foreground">-</span>}
+                      </span>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {isPlaying && room.started_at && (
@@ -347,6 +403,11 @@ export default function SpectatorView() {
           finalTime={finalTime}
           onPlayAgain={() => {}}
           onBackToLobby={() => navigate('/')}
+          matchResults={matchResults}
+          seriesFinished={room.series_status === 'finished'}
+          currentMatch={room.current_match || 1}
+          matchFormat={room.match_format || 1}
+          isHost={false}
         />
       )}
     </div>
