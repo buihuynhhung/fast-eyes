@@ -101,39 +101,84 @@ export type Database = {
       game_rooms: {
         Row: {
           created_at: string
+          current_match: number
           current_target: number
           finished_at: string | null
           grid_seed: string | null
           host_id: string
           id: string
+          match_format: number
           max_numbers: number
           room_code: string
+          series_status: string
           started_at: string | null
           status: string
         }
         Insert: {
           created_at?: string
+          current_match?: number
           current_target?: number
           finished_at?: string | null
           grid_seed?: string | null
           host_id: string
           id?: string
+          match_format?: number
           max_numbers?: number
           room_code: string
+          series_status?: string
           started_at?: string | null
           status?: string
         }
         Update: {
           created_at?: string
+          current_match?: number
           current_target?: number
           finished_at?: string | null
           grid_seed?: string | null
           host_id?: string
           id?: string
+          match_format?: number
           max_numbers?: number
           room_code?: string
+          series_status?: string
           started_at?: string | null
           status?: string
+        }
+        Relationships: []
+      }
+      match_results: {
+        Row: {
+          created_at: string
+          duration_ms: number
+          id: string
+          match_number: number
+          room_id: string
+          winner_color: string | null
+          winner_name: string | null
+          winner_player_id: string | null
+          winner_score: number
+        }
+        Insert: {
+          created_at?: string
+          duration_ms?: number
+          id?: string
+          match_number: number
+          room_id: string
+          winner_color?: string | null
+          winner_name?: string | null
+          winner_player_id?: string | null
+          winner_score?: number
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number
+          id?: string
+          match_number?: number
+          room_id?: string
+          winner_color?: string | null
+          winner_name?: string | null
+          winner_player_id?: string | null
+          winner_score?: number
         }
         Relationships: []
       }
@@ -426,6 +471,10 @@ export type Database = {
           p_session_id: string
           p_tournament_code: string
         }
+        Returns: Json
+      }
+      next_match: {
+        Args: { p_room_id: string; p_session_id: string }
         Returns: Json
       }
       reset_game: {
