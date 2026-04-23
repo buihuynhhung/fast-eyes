@@ -560,6 +560,8 @@ export default function GameRoomPage() {
       console.error('Error advancing to next match:', error);
     }
   };
+
+  const handleBackToLobby = () => {
     if (tournamentId) {
       // Find tournament code from tournament_matches
       (supabase as any).from('tournaments').select('tournament_code').eq('id', tournamentId).single()
