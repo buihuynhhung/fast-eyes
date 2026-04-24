@@ -205,6 +205,15 @@ export default function GameRoomPage() {
           });
           return newMap;
         });
+
+        // Bump local target as soon as we see SOMEONE claim the current target —
+        // don't wait for the slower game_rooms UPDATE event. This prevents
+        // other players from feeling "locked out" while a leader is on a streak.
+        setLocalTarget(prev => {
+          const current = prev ?? 1;
+          if (claimed.number >= current) return claimed.number + 1;
+          return prev;
+        });
       })
       .on('postgres_changes', {
         event: 'INSERT',
@@ -392,20 +401,28 @@ export default function GameRoomPage() {
 
   const handleNumberClick = useCallback(async (number: number) => {
     if (!room || !currentPlayer || room.status !== 'playing') return;
-    if (number !== effectiveTarget) return;
+    // Don't bother sending if we already know it's claimed locally.
     if (claimedNumbers.has(number)) return;
 
-    // --- Optimistic UI update ---
+    // Server is the single source of truth: send the click immediately,
+    // even if our local target is stale. The server will accept it iff
+    // current_target === number (atomic conditional UPDATE).
     const prevTarget = effectiveTarget;
-    setLocalTarget(number + 1);
-    setClaimedNumbers(prev => {
-      const newMap = new Map(prev);
-      newMap.set(number, {
-        playerId: currentPlayer.id,
-        playerColor: currentPlayer.player_color,
+    const isLikelyCorrect = number === effectiveTarget;
+
+    // Optimistic UI ONLY when our local guess matches — avoids flicker
+    // when we're sending a "long-shot" click that may well be rejected.
+    if (isLikelyCorrect) {
+      setLocalTarget(number + 1);
+      setClaimedNumbers(prev => {
+        const newMap = new Map(prev);
+        newMap.set(number, {
+          playerId: currentPlayer.id,
+          playerColor: currentPlayer.player_color,
+        });
+        return newMap;
       });
-      return newMap;
-    });
+    }
 
     // Fire RPC in background
     try {
