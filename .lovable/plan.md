@@ -1,112 +1,62 @@
 
 
-# Best-of (BO1/BO3/BO5) cho Quick Play
+# Sửa lag & "ưu tiên Player 1" trong khi tranh số
 
-## Tổng quan
-Khi tạo phòng, quản trò chọn định dạng **BO1 / BO3 / BO5**. Phòng tự động chạy nhiều ván liên tiếp, lưu kết quả từng ván, người thắng nhiều ván nhất là vô địch.
+## Nguyên nhân gốc
 
-## Luồng người dùng
+Game đang dùng **mô hình "target tuần tự"**: ai click trúng `current_target` sẽ tăng nó lên 1. Để click "mượt" liên tục, mỗi client tự dự đoán target tiếp theo bằng `localTarget` (optimistic).
 
-```text
-Tạo phòng:
-  Dialog hiện thêm: [BO1] [BO3] [BO5]  ← chọn 1
-  
-Trong phòng:
-  Header hiển thị: "Ván 1/3 — Tỉ số: An 0 - Bình 0"
-  
-  Ván kết thúc (overlay):
-    • Bảng xếp hạng ván vừa rồi (như cũ)
-    • Bảng tỉ số tổng (số ván thắng / mỗi player)
-    • Nút [Ván tiếp theo]  ← chỉ host bấm
-    
-  Sau ván cuối:
-    • Overlay đổi thành "VÔ ĐỊCH: <tên>"
-    • Hiển thị tổng kết tất cả ván (đơn giản: ván # | người thắng | thời gian)
-    • Nút [Tạo loạt mới] (reset toàn bộ) / [Về sảnh]
+**Vấn đề:**
+- **Player 1 click số 1** → tự đặt `localTarget = 2` ngay → có thể click số 2 ngay lập tức.
+- **Player 2** chỉ biết target tăng lên khi nhận được realtime event từ server (50–300 ms tuỳ mạng).
+- Trong khoảng thời gian đó, Player 2 click vào số đúng cũng bị **client tự chặn** ở dòng `if (number !== effectiveTarget) return;` (`GameRoom.tsx:395`).
+- Player 1 lại tự "đi trước" mỗi lần click, nên Player 2 luôn tụt lại 1 nhịp → **có cảm giác bị "ưu tiên" cho Player 1**.
 
-Khi 1 player đạt đủ ván thắng để chốt sớm (vd BO3 ai đó thắng 2-0):
-  Loạt kết thúc luôn, không chơi nốt ván thừa.
-```
+Ngoài ra: lệnh `SELECT ... FOR UPDATE` trong RPC `claim_number` tuần tự hoá toàn bộ click → click chồng nhau bị xếp hàng → **lag tăng theo số người chơi**.
 
-## Thay đổi
+## Giải pháp
 
-### 1. Database (migration)
+### 1. Bỏ chặn ở client — để server quyết định
+File `src/pages/GameRoom.tsx` (`handleNumberClick`):
+- **Xoá** điều kiện `if (number !== effectiveTarget) return;`.
+- Vẫn giữ `if (claimedNumbers.has(number)) return;` (đã claim rồi thì khỏi gửi).
+- Gửi RPC ngay → server là trọng tài duy nhất. Nếu server từ chối (`success: false`), rollback optimistic.
+- **Optimistic update có điều kiện**: chỉ apply optimistic UI khi `number === effectiveTarget` (để UX mượt cho người đi đầu); nếu `number > effectiveTarget` thì gửi RPC mà không optimistic, đợi server xác nhận.
 
-**Bảng `game_rooms`** — thêm 3 cột:
-- `match_format` INT DEFAULT 1 — số ván tối đa (1, 3, 5)
-- `current_match` INT DEFAULT 1 — ván hiện tại
-- `series_status` TEXT DEFAULT 'in_progress' — `in_progress` | `finished`
+### 2. Cập nhật `effectiveTarget` ngay khi thấy số bị claim
+Khi nhận realtime event `INSERT claimed_numbers` (dòng 187–208), nếu số được claim **= effectiveTarget hiện tại**, tự tăng `localTarget` lên `claimed.number + 1` luôn → không cần đợi event `UPDATE game_rooms` riêng.
 
-**Bảng mới `match_results`** — lưu kết quả từng ván:
-- `id` uuid PK
-- `room_id` uuid → game_rooms
-- `match_number` int
-- `winner_player_id` uuid → players (null nếu hòa)
-- `duration_ms` int
-- `created_at` timestamptz
-- RLS: anyone can SELECT/INSERT (cùng pattern với các bảng hiện tại)
-- REPLICA IDENTITY FULL + add to realtime publication
+→ Player 2 thấy "số 1 vừa được claim" thì target hiển thị nhảy lên 2 ngay lập tức, có thể click số 2 mà không phải đợi.
 
-**RPC `claim_number`** — khi ván kết thúc:
-- Insert row vào `match_results` (winner = player có score cao nhất trong ván, duration = `now() - started_at`)
-- Tính tỉ số: nếu có player thắng > `match_format / 2` ván → set `series_status = 'finished'`, giữ `status = 'finished'`
-- Ngược lại: giữ `status = 'finished'` (chờ host bấm "Ván tiếp theo")
+### 3. Sửa thông báo lỗi gây hiểu lầm trong RPC
+File migration mới — sửa `claim_number`:
+- Khi `p_number != v_current_target`, hiện đang trả `'Number already claimed'` → đổi thành `'Wrong number'` hoặc tách 2 trường hợp riêng. Giúp debug & tránh hiểu nhầm.
+- (Tuỳ chọn) Bỏ `FOR UPDATE` lock trên `game_rooms`, thay bằng **conditional UPDATE**:
+  ```sql
+  UPDATE game_rooms 
+  SET current_target = current_target + 1 
+  WHERE id = p_room_id AND current_target = p_number
+  RETURNING current_target INTO v_new_target;
+  IF NOT FOUND THEN -- ai khác đã claim
+    RETURN jsonb_build_object('success', false, 'error', 'Wrong number');
+  END IF;
+  ```
+  → atomic, không cần lock toàn bảng/row → các click song song không bị xếp hàng.
 
-**RPC mới `next_match`** (host-only):
-- Validate host + `series_status = 'in_progress'` + `status = 'finished'`
-- Tăng `current_match`, reset `current_target = 1`, `started_at = NULL`, `finished_at = NULL`, `status = 'waiting'`
-- Đổi `grid_seed` mới (random)
-- Reset `score` của tất cả players về 0
-- Xóa `claimed_numbers` của room
-- (Không xóa `match_results` — giữ lịch sử)
+### 4. Fallback đồng bộ
+Giữ `useEffect` hiện tại đồng bộ `localTarget` với `room.current_target` (đã có) — lúc realtime event `game_rooms` UPDATE tới sẽ "kéo" target về đúng nếu lệch.
 
-**RPC `reset_game`** (cập nhật):
-- Đổi tên/mục đích: dùng cho **bắt đầu loạt mới** sau khi series kết thúc
-- Reset `current_match = 1`, `series_status = 'in_progress'`, xóa `match_results` của room
-
-### 2. Frontend
-
-**`src/pages/Index.tsx`** — Dialog tạo phòng:
-- Thêm 3 nút radio: BO1 / BO3 / BO5 (default BO1 = giữ hành vi cũ)
-- Truyền `match_format` vào insert `game_rooms`
-
-**`src/types/game.ts`** — thêm:
-- `match_format`, `current_match`, `series_status` vào `GameRoom`
-- Type mới `MatchResult`
-
-**`src/pages/GameRoom.tsx`**:
-- Subscribe thêm bảng `match_results` cho room
-- Header: hiển thị "Ván X/Y — Tỉ số: [tên: số ván thắng]" khi `match_format > 1`
-- Khi ván kết thúc:
-  - Nếu `series_status === 'in_progress'`: VictoryOverlay hiện nút **"Ván tiếp theo"** (chỉ host) thay cho "Play Again"
-  - Nếu `series_status === 'finished'`: hiện overlay vô địch + bảng tổng kết các ván + nút "Tạo loạt mới"
-- Nút "Ván tiếp theo" gọi RPC `next_match`
-
-**`src/components/game/VictoryOverlay.tsx`** — props mới:
-- `matchResults?: MatchResult[]` (tổng kết các ván đã đấu)
-- `seriesFinished?: boolean` (đổi tiêu đề + nút)
-- `currentMatch?: number`, `matchFormat?: number`
-- `players` (đã có): dùng để map winner_id → tên + màu
-- Nếu `matchResults` có dữ liệu: render bảng nhỏ "Ván # | Người thắng | Thời gian"
-
-**`src/pages/SpectatorView.tsx`**:
-- Hiển thị header "Ván X/Y — Tỉ số: ..."
-- Khi series kết thúc: hiện bảng tổng kết các ván (read-only)
-
-## Files ảnh hưởng
+## Files thay đổi
 
 | File | Hành động |
 |------|-----------|
-| Migration SQL | Thêm cột vào `game_rooms`, tạo bảng `match_results`, sửa `claim_number` & `reset_game`, tạo RPC `next_match` |
-| `src/types/game.ts` | Thêm fields + type `MatchResult` |
-| `src/pages/Index.tsx` | Radio BO1/BO3/BO5 trong dialog |
-| `src/pages/GameRoom.tsx` | Header tỉ số, fetch/subscribe `match_results`, gọi `next_match`, đổi logic overlay |
-| `src/pages/SpectatorView.tsx` | Header tỉ số + bảng tổng kết |
-| `src/components/game/VictoryOverlay.tsx` | Hiện bảng các ván + nút "Ván tiếp theo" / "Tạo loạt mới" |
+| `src/pages/GameRoom.tsx` | Bỏ chặn target ở client; cập nhật `localTarget` từ event `claimed_numbers`; optimistic có điều kiện |
+| Migration SQL mới | Viết lại `claim_number`: conditional UPDATE thay `FOR UPDATE`, sửa error messages |
 
 ## Kết quả
-- Tạo phòng BO3 → chơi 2-3 ván liên tiếp, kết quả từng ván được lưu.
-- Ai thắng đa số ván trước = vô địch (chốt sớm khi có thể).
-- Bảng tổng kết hiển thị từng ván: ai thắng + thời gian.
-- BO1 (mặc định) hành xử y như hiện tại — không ảnh hưởng người dùng cũ.
+
+- **Player 2 không còn bị "tụt nhịp"**: click bất cứ lúc nào, nếu số đó đang là target → server cho phép, nếu sai → server từ chối ngay.
+- **Hết "ưu tiên" Player 1**: cả hai có cơ hội ngang nhau ở mỗi số — ai click trước, server xử trước (atomic).
+- **Bớt lag khi nhiều người tranh**: bỏ row-lock → throughput cao hơn.
+- Optimistic UI vẫn giữ → người đang dẫn trước cảm giác mượt như cũ.
 
