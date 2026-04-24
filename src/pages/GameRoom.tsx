@@ -435,26 +435,29 @@ export default function GameRoomPage() {
 
       if (error) {
         console.error('Error claiming number:', error);
-        // Rollback
-        setClaimedNumbers(prev => {
-          const newMap = new Map(prev);
-          newMap.delete(number);
-          return newMap;
-        });
-        setLocalTarget(prevTarget);
+        if (isLikelyCorrect) {
+          setClaimedNumbers(prev => {
+            const newMap = new Map(prev);
+            newMap.delete(number);
+            return newMap;
+          });
+          setLocalTarget(prevTarget);
+        }
         return;
       }
 
       const result = data as { success: boolean; error?: string; finished?: boolean };
 
       if (!result.success) {
-        // Rollback — someone else claimed it
-        setClaimedNumbers(prev => {
-          const newMap = new Map(prev);
-          newMap.delete(number);
-          return newMap;
-        });
-        setLocalTarget(prevTarget);
+        // Server rejected — only rollback if we had applied an optimistic update
+        if (isLikelyCorrect) {
+          setClaimedNumbers(prev => {
+            const newMap = new Map(prev);
+            newMap.delete(number);
+            return newMap;
+          });
+          setLocalTarget(prevTarget);
+        }
         return;
       }
 
@@ -476,13 +479,14 @@ export default function GameRoomPage() {
       }
     } catch (error) {
       console.error('Error claiming number:', error);
-      // Rollback
-      setClaimedNumbers(prev => {
-        const newMap = new Map(prev);
-        newMap.delete(number);
-        return newMap;
-      });
-      setLocalTarget(prevTarget);
+      if (isLikelyCorrect) {
+        setClaimedNumbers(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(number);
+          return newMap;
+        });
+        setLocalTarget(prevTarget);
+      }
     }
   }, [room, currentPlayer, claimedNumbers, sessionId, effectiveTarget]);
 
